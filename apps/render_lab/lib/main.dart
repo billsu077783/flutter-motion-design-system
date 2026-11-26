@@ -18,10 +18,10 @@ class _RenderLabState extends State<RenderLab> {
   ui.FragmentShader? shader;
   String? error;
   double refraction = 24;
-  double blur = 7;
+  double blur = 3;
   double thickness = 0.8;
   double highlight = 0.8;
-  double tint = 0.12;
+  double tint = 0.06;
   double dispersion = 0.05;
   bool compare = false;
 
@@ -55,7 +55,7 @@ class _RenderLabState extends State<RenderLab> {
       final image = await picture.toImage(512, 320);
       final blurRecorder = ui.PictureRecorder();
       final blurCanvas = Canvas(blurRecorder);
-      blurCanvas.saveLayer(const Rect.fromLTWH(0, 0, 512, 320), Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7, tileMode: ui.TileMode.clamp));
+      blurCanvas.saveLayer(const Rect.fromLTWH(0, 0, 512, 320), Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 3, sigmaY: 3, tileMode: ui.TileMode.clamp));
       blurCanvas.drawImage(image, Offset.zero, Paint());
       blurCanvas.restore();
       final blurPicture = blurRecorder.endRecording();
@@ -151,7 +151,7 @@ class _RenderLabState extends State<RenderLab> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('FMDS Render Lab v0.3.2'),
+                    const Text('FMDS Render Lab v0.3.3'),
                     const SizedBox(height: 16),
                     if (error != null) Text(error!),
                     if (scene == null && error == null) const Text('Loading shader'),
@@ -175,7 +175,7 @@ class _RenderLabState extends State<RenderLab> {
                     control('Tint', tint, 0.8, (v) => setState(() => tint = v)),
                     control('Dispersion', dispersion, 1, (v) => setState(() => dispersion = v)),
                     GestureDetector(
-                      onTap: () { setState(() { refraction = 24; thickness = 0.8; highlight = 0.8; tint = 0.12; dispersion = 0.05; compare = false; }); changeBlur(7); },
+                      onTap: () { setState(() { refraction = 24; thickness = 0.8; highlight = 0.8; tint = 0.06; dispersion = 0.05; compare = false; }); changeBlur(3); },
                       child: const Padding(padding: EdgeInsets.all(12), child: Text('Reset parameters')),
                     ),
                     GestureDetector(
