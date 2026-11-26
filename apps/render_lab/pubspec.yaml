@@ -1,6 +1,6 @@
 name: fmds_render_lab
 publish_to: none
-version: 0.1.0+1
+version: 0.2.0+2
 environment:
   sdk: '>=3.6.0 <4.0.0'
 dependencies:
@@ -9,3 +9,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+flutter:
+  shaders:
+    - shaders/glass.frag
