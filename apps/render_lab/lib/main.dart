@@ -24,6 +24,7 @@ class _RenderLabState extends State<RenderLab> {
   double tint = 0.06;
   double dispersion = 0.05;
   bool compare = false;
+  bool reference = false;
 
   @override
   void initState() {
@@ -151,7 +152,7 @@ class _RenderLabState extends State<RenderLab> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('FMDS Render Lab v0.3.3'),
+                    const Text('FMDS Render Lab v0.3.4'),
                     const SizedBox(height: 16),
                     if (error != null) Text(error!),
                     if (scene == null && error == null) const Text('Loading shader'),
@@ -162,12 +163,19 @@ class _RenderLabState extends State<RenderLab> {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            CustomPaint(painter: OpticalPainter(scene!, blurred!, shader!, refraction, blur, compare, thickness, highlight, tint, dispersion)),
+                            CustomPaint(painter: OpticalPainter(scene!, blurred!, shader!, refraction, blur, compare, thickness, highlight, tint, dispersion, reference)),
                             const Center(child: Text('Optical Glass', style: TextStyle(color: Color(0xff172337), fontSize: 20, fontWeight: FontWeight.bold))),
                           ],
                         ),
                       ),
                     const SizedBox(height: 16),
+                    GestureDetector(
+                      onTap: () => setState(() { reference = !reference; compare = false; }),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(reference ? 'B: SDF gradient reference (tap)' : 'A: v0.3.3 height field (tap)'),
+                      ),
+                    ),
                     control('Refraction', refraction, 48, (v) => setState(() => refraction = v)),
                     control('Blur sigma', blur, 12, changeBlur),
                     control('Thickness', thickness, 1.5, (v) => setState(() => thickness = v)),
@@ -175,7 +183,7 @@ class _RenderLabState extends State<RenderLab> {
                     control('Tint', tint, 0.8, (v) => setState(() => tint = v)),
                     control('Dispersion', dispersion, 1, (v) => setState(() => dispersion = v)),
                     GestureDetector(
-                      onTap: () { setState(() { refraction = 24; thickness = 0.8; highlight = 0.8; tint = 0.06; dispersion = 0.05; compare = false; }); changeBlur(3); },
+                      onTap: () { setState(() { refraction = 24; thickness = 0.8; highlight = 0.8; tint = 0.06; dispersion = 0.05; compare = false; reference = false; }); changeBlur(3); },
                       child: const Padding(padding: EdgeInsets.all(12), child: Text('Reset parameters')),
                     ),
                     GestureDetector(
@@ -198,7 +206,7 @@ class _RenderLabState extends State<RenderLab> {
 }
 
 class OpticalPainter extends CustomPainter {
-  OpticalPainter(this.scene, this.blurred, this.shader, this.refraction, this.blur, this.compare, this.thickness, this.highlight, this.tint, this.dispersion);
+  OpticalPainter(this.scene, this.blurred, this.shader, this.refraction, this.blur, this.compare, this.thickness, this.highlight, this.tint, this.dispersion, this.reference);
 
   final ui.Image scene;
   final ui.Image blurred;
@@ -210,6 +218,7 @@ class OpticalPainter extends CustomPainter {
   final double highlight;
   final double tint;
   final double dispersion;
+  final bool reference;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -223,6 +232,7 @@ class OpticalPainter extends CustomPainter {
       ..setFloat(6, highlight)
       ..setFloat(7, tint)
       ..setFloat(8, dispersion)
+      ..setFloat(9, reference ? 1 : 0)
       ..setImageSampler(0, scene)
       ..setImageSampler(1, blurred);
     canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
