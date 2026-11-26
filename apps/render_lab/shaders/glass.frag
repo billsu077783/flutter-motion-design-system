@@ -7,6 +7,7 @@ uniform float uThickness;
 uniform float uHighlight;
 uniform float uTint;
 uniform float uDispersion;
+uniform float uReference;
 uniform sampler2D uScene;
 uniform sampler2D uBlurred;
 out vec4 fragColor;
@@ -59,5 +60,20 @@ void main() {
   float inner=exp(-pow((d+bevel*0.72)/1.0,2.0));
   col+=optical*uHighlight*(outer*(0.12+upper*0.65)+inner*lower*0.16);
   col*=1.0-optical*inner*upper*0.09;
+  if(uReference>0.5 && optical>0.5) {
+    vec2 grad=vec2(sdf(local+vec2(0.5,0),b,r)-sdf(local-vec2(0.5,0),b,r),
+      sdf(local+vec2(0,0.5),b,r)-sdf(local-vec2(0,0.5),b,r));
+    float edge=clamp(1.0+d/max(1.0,12.0*uThickness),0.0,1.0);
+    vec2 offset=-grad*edge*edge*uRefraction*0.55/uSize;
+    vec2 uv2=uv+offset;
+    vec2 rgbShift=offset*uDispersion*0.15;
+    col=vec3(transmission(uv2+rgbShift).r,transmission(uv2).g,transmission(uv2-rgbShift).b);
+    float directional=dot(grad,vec2(-0.45,-0.89));
+    float shine=pow(max(0.0,directional),3.0)*pow(edge,3.0);
+    float shade=pow(max(0.0,-directional),2.0)*edge;
+    col=mix(col,vec3(0.96,0.98,1.0),uTint);
+    col+=uHighlight*(shine*0.28+outer*0.16);
+    col*=1.0-0.12*shade*uHighlight;
+  }
   fragColor=mix(base,vec4(clamp(col,0.0,1.0),1.0),mask);
 }
