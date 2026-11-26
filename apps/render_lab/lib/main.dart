@@ -13,13 +13,14 @@ class RenderLab extends StatefulWidget {
 
 class _RenderLabState extends State<RenderLab> {
   ui.Image? scene;
+  ui.Image? blurred;
   ui.FragmentShader? shader;
   String? error;
   double refraction = 24;
   double blur = 7;
   double thickness = 0.8;
   double highlight = 0.8;
-  double tint = 0.25;
+  double tint = 0.12;
   double dispersion = 0.05;
   bool compare = false;
 
@@ -51,13 +52,23 @@ class _RenderLabState extends State<RenderLab> {
       canvas.drawCircle(const Offset(355, 190), 82, paint);
       final picture = recorder.endRecording();
       final image = await picture.toImage(512, 320);
+      final blurRecorder = ui.PictureRecorder();
+      final blurCanvas = Canvas(blurRecorder);
+      blurCanvas.saveLayer(const Rect.fromLTWH(0, 0, 512, 320), Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12, tileMode: ui.TileMode.clamp));
+      blurCanvas.drawImage(image, Offset.zero, Paint());
+      blurCanvas.restore();
+      final blurPicture = blurRecorder.endRecording();
+      final filtered = await blurPicture.toImage(512, 320);
+      blurPicture.dispose();
       picture.dispose();
       if (!mounted) {
         image.dispose();
+        filtered.dispose();
         return;
       }
       setState(() {
         scene = image;
+        blurred = filtered;
         shader = program.fragmentShader();
       });
     } catch (e) {
@@ -68,6 +79,7 @@ class _RenderLabState extends State<RenderLab> {
   @override
   void dispose() {
     scene?.dispose();
+    blurred?.dispose();
     shader?.dispose();
     super.dispose();
   }
@@ -111,31 +123,31 @@ class _RenderLabState extends State<RenderLab> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('FMDS Render Lab v0.3.0'),
+                    const Text('FMDS Render Lab v0.3.1'),
                     const SizedBox(height: 16),
                     if (error != null) Text(error!),
                     if (scene == null && error == null) const Text('Loading shader'),
-                    if (scene != null && shader != null)
+                    if (scene != null && blurred != null && shader != null)
                       SizedBox(
                         width: 320,
                         height: 200,
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            CustomPaint(painter: OpticalPainter(scene!, shader!, refraction, blur, compare, thickness, highlight, tint, dispersion)),
+                            CustomPaint(painter: OpticalPainter(scene!, blurred!, shader!, refraction, blur, compare, thickness, highlight, tint, dispersion)),
                             const Center(child: Text('Optical Glass', style: TextStyle(color: Color(0xff172337), fontSize: 20, fontWeight: FontWeight.bold))),
                           ],
                         ),
                       ),
                     const SizedBox(height: 16),
                     control('Refraction', refraction, 48, (v) => setState(() => refraction = v)),
-                    control('Blur sample spacing', blur, 12, (v) => setState(() => blur = v)),
+                    control('Blur mix', blur, 12, (v) => setState(() => blur = v)),
                     control('Thickness', thickness, 1.5, (v) => setState(() => thickness = v)),
                     control('Highlight', highlight, 1.5, (v) => setState(() => highlight = v)),
                     control('Tint', tint, 0.8, (v) => setState(() => tint = v)),
                     control('Dispersion', dispersion, 1, (v) => setState(() => dispersion = v)),
                     GestureDetector(
-                      onTap: () => setState(() { refraction = 24; blur = 7; thickness = 0.8; highlight = 0.8; tint = 0.25; dispersion = 0.05; compare = false; }),
+                      onTap: () => setState(() { refraction = 24; blur = 7; thickness = 0.8; highlight = 0.8; tint = 0.12; dispersion = 0.05; compare = false; }),
                       child: const Padding(padding: EdgeInsets.all(12), child: Text('Reset parameters')),
                     ),
                     GestureDetector(
@@ -158,9 +170,10 @@ class _RenderLabState extends State<RenderLab> {
 }
 
 class OpticalPainter extends CustomPainter {
-  OpticalPainter(this.scene, this.shader, this.refraction, this.blur, this.compare, this.thickness, this.highlight, this.tint, this.dispersion);
+  OpticalPainter(this.scene, this.blurred, this.shader, this.refraction, this.blur, this.compare, this.thickness, this.highlight, this.tint, this.dispersion);
 
   final ui.Image scene;
+  final ui.Image blurred;
   final ui.FragmentShader shader;
   final double refraction;
   final double blur;
@@ -182,7 +195,8 @@ class OpticalPainter extends CustomPainter {
       ..setFloat(6, highlight)
       ..setFloat(7, tint)
       ..setFloat(8, dispersion)
-      ..setImageSampler(0, scene);
+      ..setImageSampler(0, scene)
+      ..setImageSampler(1, blurred);
     canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
   }
 
