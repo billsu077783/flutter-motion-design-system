@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FMDS v0.3.6 D Physical Glass</title><style>
+*{box-sizing:border-box}body{margin:0;background:#172337;color:#eef4ff;font:16px system-ui}main{max-width:680px;margin:auto;padding:20px}h1{font-size:22px}#stage{position:relative;aspect-ratio:8/5;background:#829fc9;border-radius:12px;overflow:hidden}canvas{display:block;width:100%;height:100%}#label{position:absolute;inset:0;display:grid;place-items:center;color:#172337;font-weight:700;font-size:clamp(16px,4vw,24px);pointer-events:none}label{display:grid;grid-template-columns:1fr 65px;gap:8px;margin:14px 0}input{grid-column:1/-1;width:100%}button,a{color:inherit}button{background:#344968;border:1px solid #7287a2;border-radius:8px;padding:10px;margin:4px}small{color:#b9c8db}#status{white-space:pre-wrap}</style><main><h1>FMDS Render Lab v0.3.6 · D</h1><p>Physical Glass / Three.js reference</p><div id="stage"><div id="label">Optical Glass</div></div><p id="status">Loading WebGL reference…</p><div id="controls"></div><button id="reset">Reset</button><button id="theme">Light / dark scene</button><button id="shape">Pill / panel</button><p><a href="./">Return to Flutter A/B/C v0.3.5</a></p><small>Independent WebGL reference, not Flutter rendering. Thickness is in scene units. Roughness affects physical transmission; it is not Gaussian blur sigma.</small></main><script type="module">
+import * as T from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+const status=document.querySelector('#status');
+try {
+const stage=document.querySelector('#stage'), renderer=new T.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setClearColor(0x172337);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;stage.prepend(renderer.domElement);
+const scene=new T.Scene(), camera=new T.OrthographicCamera(-4,4,2.5,-2.5,.1,50);camera.position.set(0,0,12);
+const env=new T.Scene();env.background=new T.Color(0x303744);
+function strip(x,y,z,w,h,power){const m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({color:new T.Color(power,power,power),side:T.DoubleSide}));m.position.set(x,y,z);m.lookAt(0,0,0);env.add(m);return m}
+const key=strip(-2,3,4,7,.55,6);strip(3,-2,3,4,.45,3);strip(-4,0,2,.6,4,2);
+const pmrem=new T.PMREMGenerator(renderer);let envMap=pmrem.fromScene(env,.04);scene.environment=envMap.texture;
+const bg=document.createElement('canvas');bg.width=1024;bg.height=640;const ctx=bg.getContext('2d');const texture=new T.CanvasTexture(bg);texture.colorSpace=T.SRGBColorSpace;
+const plane=new T.Mesh(new T.PlaneGeometry(8,5),new T.MeshBasicMaterial({map:texture,toneMapped:false}));plane.position.z=-.7;scene.add(plane);
+let dark=false,panel=false;
+function background(){const colors=dark?['#44374d','#304967','#4d4668','#325b60']:['#e6b9ae','#829fc9','#c4b5e4','#85bdb8'];for(let i=0;i<16;i++){ctx.fillStyle=colors[i%4];ctx.fillRect(i*64,0,64,640)}for(const [x,y,r,c] of [[310,260,140,dark?'#92b6e8':'#344968'],[710,380,164,dark?'#d8a56d':'#f4dfaf']]){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=c;ctx.fill()}texture.needsUpdate=true}
+background();
+const defaults={ior:1.46,roughness:.08,thickness:.42,transmission:1,envMapIntensity:1.5,bevel:.16,depth:.20,tint:0,angle:315,exposure:1.15};const p={...defaults};
+const mat=new T.MeshPhysicalMaterial({metalness:0,transmission:1,roughness:.08,ior:1.46,thickness:.42,envMapIntensity:1.5,attenuationDistance:2,attenuationColor:0xffffff,clearcoat:0});
+let glass;
+function geometry(){const w=6.2,h=panel?3.4:1.65,r=panel?.38:.72,b=Math.min(p.bevel,r*.45);const x=-w/2+b,y=-h/2+b,W=w-2*b,H=h-2*b,R=r-b;const s=new T.Shape();s.moveTo(x+R,y);s.lineTo(x+W-R,y);s.quadraticCurveTo(x+W,y,x+W,y+R);s.lineTo(x+W,y+H-R);s.quadraticCurveTo(x+W,y+H,x+W-R,y+H);s.lineTo(x+R,y+H);s.quadraticCurveTo(x,y+H,x,y+H-R);s.lineTo(x,y+R);s.quadraticCurveTo(x,y,x+R,y);const g=new T.ExtrudeGeometry(s,{depth:p.depth,bevelEnabled:true,bevelThickness:b,bevelSize:b,bevelSegments:8,curveSegments:32,steps:1});g.center();g.computeVertexNormals();if(glass){glass.geometry.dispose();glass.geometry=g}else{glass=new T.Mesh(g,mat);scene.add(glass)}}
+function render(){renderer.render(scene,camera)}
+function apply(k){for(const n of ['ior','roughness','thickness','transmission','envMapIntensity'])mat[n]=p[n];mat.attenuationColor.setRGB(1-p.tint*.5,1-p.tint*.15,1);renderer.toneMappingExposure=p.exposure;if(!k||k==='bevel'||k==='depth')geometry();if(!k||k==='angle'){const a=p.angle*Math.PI/180;key.position.set(Math.cos(a)*3,-Math.sin(a)*3,4);key.lookAt(0,0,0);const old=envMap;envMap=pmrem.fromScene(env,.04);scene.environment=envMap.texture;old.dispose()}render()}
+const specs=[['ior',1,2,.01],['roughness',0,.65,.01],['thickness',0,1.5,.01],['transmission',0,1,.01],['envMapIntensity',0,4,.05],['bevel',.02,.32,.01],['depth',.05,.5,.01],['tint',0,.8,.01],['angle',0,360,1],['exposure',.5,2,.05]];
+const controls=document.querySelector('#controls');for(const [k,min,max,step] of specs){const l=document.createElement('label');l.innerHTML=k+'<output></output><input type="range">';const i=l.querySelector('input'),o=l.querySelector('output');Object.assign(i,{min,max,step,value:p[k]});o.value=p[k];i.oninput=()=>{p[k]=+i.value;o.value=p[k];apply(k)};controls.append(l)}
+document.querySelector('#reset').onclick=()=>{Object.assign(p,defaults);[...controls.children].forEach((l,i)=>{l.querySelector('input').value=p[specs[i][0]];l.querySelector('output').value=p[specs[i][0]]});apply()};
+document.querySelector('#theme').onclick=()=>{dark=!dark;background();document.querySelector('#label').style.color=dark?'#fff':'#172337';render()};
+document.querySelector('#shape').onclick=()=>{panel=!panel;geometry();render()};
+function resize(){renderer.setSize(stage.clientWidth,stage.clientHeight,false);render()}apply();new ResizeObserver(resize).observe(stage);resize();status.textContent='D · MeshPhysicalMaterial / PMREM / beveled geometry';
+}catch(e){status.textContent='WebGL initialization failed: '+e.message;console.error(e)}
+</script></html>
