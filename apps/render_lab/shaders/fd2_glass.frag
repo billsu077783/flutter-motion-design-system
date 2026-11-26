@@ -61,13 +61,23 @@ void main(){
  vec2 g=vec2(heightAt(p+vec2(.5,0.))-heightAt(p-vec2(.5,0.)),heightAt(p+vec2(0.,.5))-heightAt(p-vec2(0.,.5)));
  vec3 n=normalize(vec3(-g,1.)),v=vec3(0.,0.,1.);
  vec3 ray=refract(-v,n,1./ior);
- vec2 q=xy+ray.xy/max(.35,abs(ray.z))*min(24.,refraction*thickness);
+ // Parallel back interface: lateral travel inside the dielectric slab.
+ vec3 exitRay=refract(ray,vec3(0.,0.,1.),ior);
+ float travel=min(bounds().y*.8,refraction*thickness*(1.+depth));
+ vec2 lateral=ray.xy/max(.35,abs(ray.z))*travel;
+ vec2 outgoing=exitRay.xy/max(.45,abs(exitRay.z))*travel*.28;
+ vec2 q=xy+lateral+outgoing;
  vec3 c=blurred(q);c.r=blurred(q-n.xy*dispersion*refraction*thickness).r;c.b=blurred(q+n.xy*dispersion*refraction*thickness).b;
  float neutral=mix(.933,.125,dark);vec3 base=linearize(vec3(neutral));
  c=mix(c,base,tint);c=mix(base,c,transmission);c=mix(c,base,contrast*.22);
  float f0=pow((ior-1.)/(ior+1.),2.);float nv=max(.001,n.z);
  float F=f0+(1.-f0)*pow(1.-nv,5.)*fresnel;
- vec3 r=reflect(-v,n);vec3 reflected=envSample(r)*env*exposure;
+ vec3 r=reflect(-v,n);
+ // Studio texture is a reflection source, not an additive ambient wash.
+ vec3 studio=envSample(r);
+ float localLum=dot(blurred(xy),vec3(.2126,.7152,.0722));
+ float gain=mix(.32,.85,smoothstep(.02,.65,localLum));
+ vec3 reflected=clamp(studio*env*exposure*gain,0.,1.);
  vec3 l=normalize(vec3(cos(angle)*.42,sin(angle)*.42,1.));vec3 h=normalize(v+l);
  float nl=max(0.,dot(n,l)),nh=max(0.,dot(n,h)),vh=max(0.,dot(v,h));
  float a=max(.12,roughness);float a2=a*a;float den=nh*nh*(a2-1.)+1.;
@@ -77,10 +87,12 @@ void main(){
  float e=max(3.,bounds().y*2.*bevelWidth);
  float band=exp(-pow((clamp(-d/e,0.,1.)-.10)/max(.02,highlightWidth),2.));
  float dir=clamp(dot(normalize(n.xy+vec2(.00001)),l.xy)*.5+.5,0.,1.);
- float edge=clamp(edgeHighlight*highlight*rim*band*(.06+.38*dir),0.,.65);
- float weight=clamp(F+surfaceReflection*(.18+.55*pow(nv,3.))+edge,0.,.9);
- vec3 result=c*(1.-weight)+reflected*weight;
- result+=vec3(spec*surfaceReflection*highlight*.32);
- result+=reflected*ambientLift*.12;
+ float edge=clamp(edgeHighlight*highlight*rim*band*pow(dir,3.)*.12,0.,.22);
+ float weight=clamp(F*(.35+surfaceReflection*2.)+edge,0.,.65);
+ // Allocate the directional glint from the same reflection budget.
+ float glint=clamp(spec*surfaceReflection*highlight*.12,0.,.12);
+ float total=clamp(weight+glint,0.,.72);
+ vec3 result=c*(1.-total)+reflected*weight+vec3(glint);
+ result=mix(result,max(result,c),ambientLift*.12);
  fragColor=vec4(mix(bg,encode(result),alpha),1.);
 }
