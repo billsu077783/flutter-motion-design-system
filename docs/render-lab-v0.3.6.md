@@ -1,0 +1,3 @@
+# v0.3.6 D Physical Glass
+
+C v0.3.5 rejected by user visual review. D is a standalone Three.js r170 WebGL reference, not a Flutter implementation. Uses actual extruded rounded geometry, MeshPhysicalMaterial transmission, PMREM from emissive studio strips, orthographic camera, matching stripe/circle scene, independent foreground text. Ten controls, reset, light/dark scene and pill/panel shape. A/B/C Flutter lab remains unchanged at v0.3.5. D is deployed alongside it at physical-glass.html. CDN dependency and WebGL2 required; no native backend, independent Gaussian blur, state colors, spring morph, or device acceptance yet. D parameters are physical material controls, not identical to A/B/C. CI and visual verification pending. M0 remains unaccepted.
