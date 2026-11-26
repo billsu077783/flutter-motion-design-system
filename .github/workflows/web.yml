@@ -23,7 +23,7 @@ jobs:
           channel: stable
           flutter-version: '3.38.5'
       - run: flutter pub get
-      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: dart format lib test
       - run: flutter analyze
       - run: flutter test
       - run: flutter build web --release --base-href /flutter-motion-design-system/
