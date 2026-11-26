@@ -1,0 +1,3 @@
+# v0.3.7 D2 Hybrid Optical Glass
+
+D1 remains at physical-glass.html. D2 at hybrid-glass.html retains ten controls and adds blur (CSS pixels), rimLight, shadow, crown. D1/D2 toggle, app/stripe scenes, light/dark and pill/panel. D2 uses Three.js transmission with a separately blurred canvas background texture, CSS silhouette clipping and rim/shadow composition, and disables tone mapping to test color consistency. Exposure scales environment intensity in D2. Crown is a preliminary deformation of extruded mesh vertices, not a fully tessellated continuous dome. Canvas filter support, clipping alignment, color consistency and performance require browser verification. No Flutter port, state colors or spring morph yet. M0 not accepted.
