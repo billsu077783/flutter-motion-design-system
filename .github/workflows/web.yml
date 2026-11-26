@@ -30,6 +30,7 @@ jobs:
       - run: cp web/physical-glass.html build/web/physical-glass.html
       - run: cp web/hybrid-glass.html build/web/hybrid-glass.html
       - run: cp web/glass-compare.html build/web/glass-compare.html
+      - run: cp web/glass-unified.html build/web/glass-unified.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/render_lab/build/web
