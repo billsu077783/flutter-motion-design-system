@@ -1,6 +1,6 @@
 name: fmds_render_lab
 publish_to: none
-version: 0.3.0+3
+version: 0.3.1+4
 environment:
   sdk: '>=3.6.0 <4.0.0'
 dependencies:
