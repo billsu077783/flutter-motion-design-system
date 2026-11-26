@@ -94,5 +94,12 @@ void main(){
  float total=clamp(weight+glint,0.,.72);
  vec3 result=c*(1.-total)+reflected*weight+vec3(glint);
  result=mix(result,max(result,c),ambientLift*.12);
- fragColor=vec4(mix(bg,encode(result),alpha),1.);
+ // Diagnostic modes reuse the F-D2-only model uniform; no ABI change.
+ vec3 outputColor=encode(result);
+ if(model>0.5 && model<1.5) outputColor=n*.5+.5;
+ else if(model>1.5 && model<2.5) outputColor=vec3(clamp(.5+(q-xy)/48.,0.,1.),.5);
+ else if(model>2.5 && model<3.5) outputColor=encode(c);
+ else if(model>3.5 && model<4.5) outputColor=encode(reflected*weight+vec3(glint));
+ else if(model>4.5) outputColor=vec3(total);
+ fragColor=vec4(mix(bg,outputColor,alpha),1.);
 }
