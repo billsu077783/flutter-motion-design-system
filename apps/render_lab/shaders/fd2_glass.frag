@@ -37,11 +37,11 @@ vec2 bounds(){return vec2(124.,max(8.,33.+35.*progress));}
 float radius(){return clamp(true?40.*(.72-.34*progress):bounds().y*(1.-progress)+15.2*progress,4.,bounds().y);}
 float heightAt(vec2 p){
  float d=sd(p,bounds(),radius());
- float e=max(3.,bevel*40.);
+ float e=clamp(bevel*24.,1.2,8.);
  float u=clamp(-d/e,0.,1.);
  vec2 v=p/bounds();
  float dome=max(0.,1.-dot(v*v,v*v)*.5);
- return e*.72*sin(u*1.5707963)+(crown*85.*dome+depth*10.)*smoothstep(0.,1.,u);
+ return e*(.45+depth)*sin(u*1.5707963)+(crown*38.*dome)*smoothstep(0.,1.,u);
 }
 vec3 linearize(vec3 c){return pow(max(c,vec3(0.)),vec3(2.2));}
 vec3 encode(vec3 c){return pow(clamp(c,0.,1.),vec3(1./2.2));}
@@ -76,21 +76,22 @@ void main(){
  // Studio texture is a reflection source, not an additive ambient wash.
  vec3 studio=envSample(r);
  float localLum=dot(blurred(xy),vec3(.2126,.7152,.0722));
- float gain=mix(.32,.85,smoothstep(.02,.65,localLum));
- vec3 reflected=clamp(studio*env*exposure*gain,0.,1.);
+ float gain=mix(.82,1.0,smoothstep(.02,.65,localLum));
+ vec3 radiance=studio*env*exposure*gain*2.2;
+ vec3 reflected=radiance/(vec3(1.)+radiance);
  vec3 l=normalize(vec3(cos(angle)*.42,sin(angle)*.42,1.));vec3 h=normalize(v+l);
  float nl=max(0.,dot(n,l)),nh=max(0.,dot(n,h)),vh=max(0.,dot(v,h));
  float a=max(.12,roughness);float a2=a*a;float den=nh*nh*(a2-1.)+1.;
  float D=a2/(3.14159265*den*den);float k=(a+1.)*(a+1.)/8.;
  float Fs=f0+(1.-f0)*pow(1.-vh,5.);
  float spec=min(2.,D*smith(nv,k)*smith(nl,k)*Fs/max(.004,4.*nv*nl))*nl;
- float e=max(3.,bounds().y*2.*bevelWidth);
- float band=exp(-pow((clamp(-d/e,0.,1.)-.10)/max(.02,highlightWidth),2.));
+ float e=clamp(3.+bevelWidth*12.,3.,9.);
+ float band=exp(-pow((-d-.85)/max(.35,e*highlightWidth),2.));
  float dir=clamp(dot(normalize(n.xy+vec2(.00001)),l.xy)*.5+.5,0.,1.);
- float edge=clamp(edgeHighlight*highlight*rim*band*pow(dir,3.)*.12,0.,.22);
+ float edge=clamp(edgeHighlight*highlight*rim*band*pow(dir,2.)*.42,0.,.38);
  float weight=clamp(F*(.35+surfaceReflection*2.)+edge,0.,.65);
  // Allocate the directional glint from the same reflection budget.
- float glint=clamp(spec*surfaceReflection*highlight*.12,0.,.12);
+ float glint=clamp(spec*surfaceReflection*highlight*.16,0.,.12);
  float total=clamp(weight+glint,0.,.72);
  vec3 result=c*(1.-total)+reflected*weight+vec3(glint);
  result=mix(result,max(result,c),ambientLift*.12);
