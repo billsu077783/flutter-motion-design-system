@@ -14,6 +14,7 @@ class RenderLab extends StatefulWidget {
 class _RenderLabState extends State<RenderLab> {
   ui.Image? scene;
   ui.Image? blurred;
+  int blurGeneration = 0;
   ui.FragmentShader? shader;
   String? error;
   double refraction = 24;
@@ -54,7 +55,7 @@ class _RenderLabState extends State<RenderLab> {
       final image = await picture.toImage(512, 320);
       final blurRecorder = ui.PictureRecorder();
       final blurCanvas = Canvas(blurRecorder);
-      blurCanvas.saveLayer(const Rect.fromLTWH(0, 0, 512, 320), Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12, tileMode: ui.TileMode.clamp));
+      blurCanvas.saveLayer(const Rect.fromLTWH(0, 0, 512, 320), Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7, tileMode: ui.TileMode.clamp));
       blurCanvas.drawImage(image, Offset.zero, Paint());
       blurCanvas.restore();
       final blurPicture = blurRecorder.endRecording();
@@ -76,6 +77,33 @@ class _RenderLabState extends State<RenderLab> {
     }
   }
 
+  Future<void> changeBlur(double value) async {
+    setState(() => blur = value);
+    final source = scene;
+    if (source == null) return;
+    final generation = ++blurGeneration;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    if (value > 0) {
+      canvas.saveLayer(const Rect.fromLTWH(0, 0, 512, 320), Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: value, sigmaY: value, tileMode: ui.TileMode.clamp));
+    }
+    canvas.drawImage(source, Offset.zero, Paint());
+    if (value > 0) canvas.restore();
+    final picture = recorder.endRecording();
+    try {
+      final image = await picture.toImage(512, 320);
+      if (!mounted || generation != blurGeneration) {
+        image.dispose();
+        return;
+      }
+      final old = blurred;
+      setState(() => blurred = image);
+      WidgetsBinding.instance.addPostFrameCallback((_) => old?.dispose());
+    } finally {
+      picture.dispose();
+    }
+  }
+
   @override
   void dispose() {
     scene?.dispose();
@@ -87,7 +115,7 @@ class _RenderLabState extends State<RenderLab> {
   Widget control(String label, double value, double max, ValueChanged<double> onChange) {
     return Column(
       children: [
-        Text('$label: ${value.toStringAsFixed(1)}'),
+        Text('$label: ${value.toStringAsFixed(2)}'),
         GestureDetector(
           onTapDown: (e) => onChange((e.localPosition.dx / 280).clamp(0.0, 1.0).toDouble() * max),
           onHorizontalDragUpdate: (e) => onChange((e.localPosition.dx / 280).clamp(0.0, 1.0).toDouble() * max),
@@ -123,7 +151,7 @@ class _RenderLabState extends State<RenderLab> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('FMDS Render Lab v0.3.1'),
+                    const Text('FMDS Render Lab v0.3.2'),
                     const SizedBox(height: 16),
                     if (error != null) Text(error!),
                     if (scene == null && error == null) const Text('Loading shader'),
@@ -141,13 +169,13 @@ class _RenderLabState extends State<RenderLab> {
                       ),
                     const SizedBox(height: 16),
                     control('Refraction', refraction, 48, (v) => setState(() => refraction = v)),
-                    control('Blur mix', blur, 12, (v) => setState(() => blur = v)),
+                    control('Blur sigma', blur, 12, changeBlur),
                     control('Thickness', thickness, 1.5, (v) => setState(() => thickness = v)),
                     control('Highlight', highlight, 1.5, (v) => setState(() => highlight = v)),
                     control('Tint', tint, 0.8, (v) => setState(() => tint = v)),
                     control('Dispersion', dispersion, 1, (v) => setState(() => dispersion = v)),
                     GestureDetector(
-                      onTap: () => setState(() { refraction = 24; blur = 7; thickness = 0.8; highlight = 0.8; tint = 0.12; dispersion = 0.05; compare = false; }),
+                      onTap: () { setState(() { refraction = 24; thickness = 0.8; highlight = 0.8; tint = 0.12; dispersion = 0.05; compare = false; }); changeBlur(7); },
                       child: const Padding(padding: EdgeInsets.all(12), child: Text('Reset parameters')),
                     ),
                     GestureDetector(
