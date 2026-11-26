@@ -4,6 +4,6 @@ import 'package:fmds_render_lab/main.dart';
 void main() {
   testWidgets('lab renders version', (tester) async {
     await tester.pumpWidget(const RenderLab());
-    expect(find.textContaining('FMDS Render Lab v0.3.0'), findsOneWidget);
+    expect(find.textContaining('FMDS Render Lab v0.3.1'), findsOneWidget);
   });
 }
