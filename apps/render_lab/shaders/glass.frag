@@ -8,6 +8,14 @@ uniform float uHighlight;
 uniform float uTint;
 uniform float uDispersion;
 uniform float uReference;
+uniform float uBevel;
+uniform float uCurvature;
+uniform float uIOR;
+uniform float uFresnel;
+uniform float uRoughness;
+uniform float uReflection;
+uniform float uAngle;
+uniform float uShadow;
 uniform sampler2D uScene;
 uniform sampler2D uBlurred;
 out vec4 fragColor;
@@ -23,6 +31,45 @@ vec3 transmission(vec2 uv) {
   if(uBlur<0.001) return texture(uScene,clamp(uv,vec2(0),vec2(1))).rgb;
   return texture(uBlurred,clamp(uv,vec2(0),vec2(1))).rgb;
 }
+vec3 studio(vec3 ray, float rough, vec2 light) {
+  float a=dot(ray.xy,light);
+  float side=dot(ray.xy,vec2(-light.y,light.x));
+  float width=0.10+rough*0.48;
+  float strip=exp(-pow((a-0.63)/width,2.0))*exp(-pow(side/0.85,4.0));
+  float fill=exp(-pow((a+0.58)/(0.25+rough*0.45),2.0));
+  return vec3(0.24,0.28,0.34)+vec3(0.92,0.95,1.0)*strip+vec3(0.42,0.45,0.49)*fill;
+}
+vec3 systemGlass(vec2 local,vec2 b,float r,float d,vec2 uv) {
+  float w=clamp(uBevel,1.0,b.y*0.95);
+  float x=clamp(-d/w,0.0,1.0);
+  vec2 g=vec2(sdf(local+vec2(0.5,0),b,r)-sdf(local-vec2(0.5,0),b,r),
+    sdf(local+vec2(0,0.5),b,r)-sdf(local-vec2(0,0.5),b,r));
+  // Rounded bevel: bounded slope, continuous at the inner boundary.
+  float slope=(1.0-x)*sqrt(max(0.0,1.0-x*x))*uCurvature*uThickness*3.0;
+  vec3 n=normalize(vec3(g*slope,1.0));
+  vec3 ray=refract(vec3(0,0,-1),n,1.0/max(1.0,uIOR));
+  vec2 shift=ray.xy/max(0.6,-ray.z)*uRefraction*uThickness/uSize;
+  // Bound displacement relative to bevel width to reduce texture foldover.
+  float pixels=length(shift*uSize);
+  shift*=min(1.0,w*0.65/max(pixels,0.001));
+  vec2 chroma=shift*uDispersion*0.15;
+  vec3 t=vec3(transmission(uv+shift+chroma).r,transmission(uv+shift).g,transmission(uv+shift-chroma).b);
+  vec2 light=vec2(cos(uAngle),sin(uAngle));
+  vec3 reflected=reflect(vec3(0,0,-1),n);
+  float f0=pow((uIOR-1.0)/(uIOR+1.0),2.0);
+  float fresnel=f0+(1.0-f0)*pow(1.0-n.z,5.0);
+  vec3 env=studio(reflected,uRoughness,light);
+  // Linear-light approximate energy-weighted composition.
+  vec3 lin=pow(max(t,vec3(0)),vec3(2.2));
+  lin=mix(lin,pow(vec3(0.95,0.97,1.0),vec3(2.2)),uTint);
+  float weight=clamp(fresnel*uFresnel*uReflection*uHighlight,0.0,0.75);
+  lin=mix(lin,env,weight);
+  float facing=dot(g,light);
+  float lobe=exp(-pow((x-0.22)/(0.12+uRoughness*0.25),2.0));
+  lin+=vec3(0.24)*lobe*pow(max(0.0,facing),2.0)*uHighlight*uReflection;
+  lin*=1.0-0.10*lobe*max(0.0,-facing)*uHighlight;
+  return pow(clamp(lin,0.0,1.0),vec3(1.0/2.2));
+}
 void main() {
   vec2 p=FlutterFragCoord().xy;
   vec2 b=uSize*vec2(0.39,0.18);
@@ -34,6 +81,7 @@ void main() {
   float mask=1.0-smoothstep(-0.65,0.65,d);
   float optical=1.0-uCompare;
   float shadow=exp(-pow(max(0.0,sdf(local-vec2(0,3),b,r))/5.0,2.0))*0.065*optical;
+  if(uReference>1.5) shadow=exp(-pow(max(0.0,sdf(local-vec2(0,2),b,r))/3.0,2.0))*uShadow*0.25*optical;
   base.rgb*=1.0-shadow;
   if(mask<=0.0){fragColor=base;return;}
   float bevel=min(b.y*0.48,5.0+uThickness*7.0);
@@ -60,7 +108,7 @@ void main() {
   float inner=exp(-pow((d+bevel*0.72)/1.0,2.0));
   col+=optical*uHighlight*(outer*(0.12+upper*0.65)+inner*lower*0.16);
   col*=1.0-optical*inner*upper*0.09;
-  if(uReference>0.5 && optical>0.5) {
+  if(uReference>0.5 && uReference<1.5 && optical>0.5) {
     vec2 grad=vec2(sdf(local+vec2(0.5,0),b,r)-sdf(local-vec2(0.5,0),b,r),
       sdf(local+vec2(0,0.5),b,r)-sdf(local-vec2(0,0.5),b,r));
     float edge=clamp(1.0+d/max(1.0,12.0*uThickness),0.0,1.0);
@@ -75,5 +123,6 @@ void main() {
     col+=uHighlight*(shine*0.28+outer*0.16);
     col*=1.0-0.12*shade*uHighlight;
   }
+  if(uReference>1.5 && optical>0.5) col=systemGlass(local,b,r,d,uv);
   fragColor=mix(base,vec4(clamp(col,0.0,1.0),1.0),mask);
 }
