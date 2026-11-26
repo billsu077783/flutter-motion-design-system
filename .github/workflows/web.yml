@@ -28,6 +28,7 @@ jobs:
       - run: flutter test
       - run: flutter build web --release --base-href /flutter-motion-design-system/
       - run: cp web/physical-glass.html build/web/physical-glass.html
+      - run: cp web/hybrid-glass.html build/web/hybrid-glass.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/render_lab/build/web
