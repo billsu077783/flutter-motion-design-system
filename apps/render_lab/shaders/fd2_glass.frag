@@ -29,6 +29,12 @@ uniform float surfaceReflection;
 uniform float ambientLift;
 uniform float refractionDetail;
 uniform float thinShell;
+uniform float topReflection;
+uniform float bottomReflection;
+uniform float sideReflection;
+uniform float softReflection;
+uniform float surfaceCurvature;
+uniform float surfaceFalloff;
 uniform sampler2D scene;
 uniform sampler2D softScene;
 uniform sampler2D environmentMap;
@@ -44,7 +50,9 @@ float heightAt(vec2 p){
  float dome=max(0.,1.-dot(v*v,v*v)*.5);
  float legacy=e*(.45+depth)*sqrt(max(0.,u*(2.-u)))+(crown*38.*dome)*smoothstep(0.,1.,u);
  float thin=e*(.24+depth*.65)*sin(u*1.5707963)+crown*18.*dome*smoothstep(0.,1.,u);
- return mix(legacy,thin,min(thinShell,1.));
+ float dual=step(2.5,thinShell);
+ float face=surfaceCurvature*min(bounds().y,40.)*max(0.,1.-dot(v,v)*.5)*smoothstep(0.,1.,u);
+ return mix(legacy,thin,min(thinShell,1.))+dual*face;
 }
 vec3 linearize(vec3 c){return pow(max(c,vec3(0.)),vec3(2.2));}
 vec3 encode(vec3 c){return pow(clamp(c,0.,1.),vec3(1./2.2));}
@@ -58,6 +66,7 @@ vec3 envSample(vec3 r){
 float smith(float nv,float k){return nv/max(.001,nv*(1.-k)+k);}
 void main(){
  float refined=step(1.5,thinShell);
+ float dual=step(2.5,thinShell);
  float shell=min(thinShell,1.);
  vec2 xy=FlutterFragCoord().xy/size*vec2(320.,200.);vec2 p=xy-vec2(160.,100.);
  float d=sd(p,bounds(),radius());vec3 bg=sampleAt(xy);
@@ -106,12 +115,20 @@ void main(){
  float band=exp(-pow((edgeDistance-.55)/max(.35,highlightWidth*12.),2.));
  float adaptive=mix(1.25,.78,smoothstep(.025,.7,localLum));
  float fine=clamp(edgeHighlight*highlight*rim*band*slopeGate*pow(dir,2.)*adaptive*.48,0.,.42);
- edge=mix(edge,fine,refined);
- float weight=clamp(F*(mix(.35,.10,shell)+surfaceReflection*2.)+edge,0.,.65);
+ vec2 axis=normalize(n.xy+vec2(.00001));
+ float vertical=axis.y*axis.y;
+ float dualDir=vertical*mix(topReflection,bottomReflection,step(0.,axis.y))+(1.-vertical)*sideReflection;
+ float dualFine=clamp(edgeHighlight*highlight*rim*band*slopeGate*dualDir*adaptive*.48,0.,.42);
+ edge=mix(edge,mix(fine,dualFine,dual),refined);
+ float faceMask=smoothstep(2.,6.,edgeDistance);
+ float faceBand=pow(clamp(abs(p.y)/bounds().y,0.,1.),mix(3.,.8,surfaceFalloff));
+ float broad=dual*softReflection*highlight*faceMask*(.15+.85*faceBand)*mix(.8,.45,smoothstep(.025,.7,localLum));
+ float weight=clamp(F*(mix(.35,.10,shell)+surfaceReflection*2.)+edge+broad,0.,.65);
  // Allocate the directional glint from the same reflection budget.
  float glint=clamp(spec*surfaceReflection*highlight*.16,0.,.12);
  float total=clamp(weight+glint,0.,.72);
  vec3 reflectionColor=mix(reflected,max(reflected,vec3(.85)),refined*band*slopeGate*.65);
+ reflectionColor=mix(reflectionColor,max(reflectionColor,vec3(.65)),dual*faceMask*faceBand*.45);
  vec3 result=c*(1.-total)+reflectionColor*weight+vec3(glint);
  result=mix(result,max(result,c),ambientLift*mix(.12,.03,shell));
  // Diagnostic modes reuse the F-D2-only model uniform; no ABI change.
