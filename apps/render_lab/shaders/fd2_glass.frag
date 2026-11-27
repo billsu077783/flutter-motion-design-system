@@ -42,6 +42,8 @@ uniform float darkEdgeStrength;
 uniform sampler2D scene;
 uniform sampler2D softScene;
 uniform sampler2D environmentMap;
+uniform sampler2D scatterScene;
+uniform sampler2D wideScene;
 out vec4 fragColor;
 float sd(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return length(max(q,0.0))+min(max(q.x,q.y),0.0)-r;}
 vec2 bounds(){return vec2(124.,max(8.,33.+35.*progress));}
@@ -76,7 +78,7 @@ void main(){
  float shell=min(thinShell,1.);
  vec2 xy=FlutterFragCoord().xy/size*vec2(320.,200.);vec2 p=xy-vec2(160.,100.);
  float d=sd(p,bounds(),radius());vec3 bg=sampleAt(xy);
- float sh=exp(-max(0.,sd(p-vec2(0.,mix(5.,2.,shell)),bounds(),radius()))*mix(.24,.48,shell))*shadow*.65;bg*=1.-sh; float contact=exp(-max(0.,sd(p-vec2(0.,5.),bounds(),radius()))/5.)*.19; bg*=1.-step(13.5,thinShell)*contact;
+ float sh=exp(-max(0.,sd(p-vec2(0.,mix(5.,2.,shell)),bounds(),radius()))*mix(.24,.48,shell))*shadow*.65;bg*=1.-sh;
  float alpha=clamp(.5-d,0.,1.);if(alpha<=0.){fragColor=vec4(bg,1.);return;}
  vec2 g=vec2(heightAt(p+vec2(.5,0.))-heightAt(p-vec2(.5,0.)),heightAt(p+vec2(0.,.5))-heightAt(p-vec2(0.,.5)));
  vec3 n=normalize(vec3(-g,1.)),v=vec3(0.,0.,1.);
@@ -152,48 +154,34 @@ void main(){
  result=mix(result,max(result,c),ambientLift*mix(.12,.03,shell));
  // Diagnostic modes reuse the F-D2-only model uniform; no ABI change.
  vec3 baseline=result;
- float modeA=step(10.5,thinShell)*(1.-step(11.5,thinShell));
- float modeB=step(11.5,thinShell)*(1.-step(12.5,thinShell));
- float modeC=step(12.5,thinShell)*(1.-step(13.5,thinShell));
- float modeD=step(13.5,thinShell);
- float gate=smoothstep(5.,15.,-d);
- vec2 u=p/bounds();
- // A: first internal round-trip approximation, with a bounded ghost contribution.
- vec3 internalRay=refract(-v,normalize(vec3(u*.28,1.)),1./ior);
- vec2 pathOffset=internalRay.xy/max(.35,abs(internalRay.z))*travel*3.;
- vec3 bounce=blurred(q+pathOffset);
- float bounceWeight=clamp(softReflection*.55,0.,.22)*gate;
- vec3 aResult=mix(result,bounce,bounceWeight);
- // B: local luminance-dependent scatter, independent of reflection roughness.
- vec3 sharp=linearize(sampleAt(q));
- vec3 diffuse=linearize(texture(softScene,clamp(q/vec2(320.,200.),vec2(.001),vec2(.999))).rgb);
- float localContrast=length(sharp-diffuse);
- float scatter=clamp(.65+localContrast*.65-localLum*.25,.25,.95);
- vec3 adaptiveT=mix(sharp,diffuse,scatter);
- adaptiveT=mix(adaptiveT,base,tint);
- adaptiveT=mix(base,adaptiveT,transmission);
- vec3 bResult=result+(adaptiveT-c)*(1.-total)*gate*.85;
- // C: analytic high-contrast studio field, with non-saturating tone mapping.
- vec3 fn=normalize(vec3(u*.32,1.));
- vec2 rr=reflect(-v,fn).xy;
- float key=exp(-dot((rr-vec2(-.35,.28))*vec2(2.,5.),(rr-vec2(-.35,.28))*vec2(2.,5.)));
- float fill=exp(-dot((rr-vec2(.48,-.22))*vec2(5.,2.),(rr-vec2(.48,-.22))*vec2(5.,2.)));
- vec3 hdr=vec3(.035,.045,.065)+key*vec3(3.8,3.5,3.2)+fill*vec3(.55,.8,1.3);
- vec3 mapped=hdr*exposure/(1.+hdr*exposure);
- float cw=clamp(softReflection*.7,0.,.28)*gate;
- vec3 cResult=mix(result,mapped,cw);
- // D: interior depth shading and offset soft contact shadow outside the glass.
- float depthShade=exp(-max(0.,-d)/8.)*smoothstep(0.,1.,-d);
- vec3 dResult=result*(1.-gate*depthShade*.22)+c*gate*.025;
- result=mix(result,aResult,modeA);
- result=mix(result,bResult,modeB);
- result=mix(result,cResult,modeC);
- result=mix(result,dResult,modeD);
+ float multi=step(14.5,thinShell)*(1.-step(15.5,thinShell))+step(16.5,thinShell);
+ float layered=step(15.5,thinShell);
+ float gate=smoothstep(3.,9.,-d);
+ vec2 uv=clamp(q/vec2(320.,200.),vec2(.001),vec2(.999));
+ vec3 clearT=linearize(texture(scene,uv).rgb);
+ vec3 midT=linearize(texture(scatterScene,uv).rgb);
+ vec3 wideT=linearize(texture(wideScene,uv).rgb);
+ float detail=clamp(refractionDetail,0.,1.);
+ vec3 multiT=clearT*detail+midT*(1.-detail)*.65+wideT*(1.-detail)*.35;
+ multiT=mix(multiT,base,tint);
+ multiT=mix(base,multiT,transmission);
+ multiT=mix(multiT,base,contrast*.06);
+ vec3 T=mix(c,multiT,multi*gate);
+ // Separate linear contributions; retain baseline edge and avoid neutral reflection wash.
+ vec3 reflectionLayer=reflectionColor*weight+vec3(glint);
+ float faceBudget=clamp(F*surfaceReflection*2.,0.,.12);
+ vec3 faceLight=studio*env*exposure;
+ vec3 faceReflection=faceLight/(1.+faceLight);
+ vec3 transmissionLayer=T*(1.-total);
+ vec3 separated=T*(1.-faceBudget)+faceReflection*faceBudget;
+ vec3 candidate=transmissionLayer+reflectionLayer;
+ candidate=mix(candidate,separated,layered*gate);
+ result=mix(baseline,candidate,gate*max(multi,layered));
  vec3 outputColor=encode(result);
  if(model>0.5 && model<1.5) outputColor=n*.5+.5;
  else if(model>1.5 && model<2.5) outputColor=vec3(clamp(.5+(q-xy)/48.,0.,1.),.5);
- else if(model>2.5 && model<3.5) outputColor=encode(c);
- else if(model>3.5 && model<4.5) outputColor=encode(reflectionColor*weight+vec3(glint));
+ else if(model>2.5 && model<3.5) outputColor=encode(T);
+ else if(model>3.5 && model<4.5) outputColor=encode(mix(reflectionLayer,faceReflection*faceBudget,layered*gate));
  else if(model>4.5 && model<5.5) outputColor=vec3(total); else if(model>5.5) outputColor=clamp(abs(encode(result)-encode(baseline))*8.,0.,1.);
  fragColor=vec4(mix(bg,outputColor,alpha),1.);
 }
