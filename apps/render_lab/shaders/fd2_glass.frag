@@ -39,6 +39,12 @@ uniform float reflectionWidth;
 uniform float reflectionFalloff;
 uniform float adaptiveContrast;
 uniform float darkEdgeStrength;
+uniform float faceCurvature;
+uniform float faceReflection;
+uniform float faceRefraction;
+uniform float faceRoughness;
+uniform float faceFalloff;
+uniform float faceAdaptive;
 uniform sampler2D scene;
 uniform sampler2D softScene;
 uniform sampler2D environmentMap;
@@ -57,6 +63,12 @@ float heightAt(vec2 p){
  float dual=step(2.5,thinShell)*(1.-step(3.5,thinShell));
  float face=surfaceCurvature*min(bounds().y,40.)*max(0.,1.-dot(v,v)*.5)*smoothstep(0.,1.,u);
  return mix(legacy,thin,min(thinShell,1.))+dual*face;
+}
+float faceHeight(vec2 p){
+ float d=sd(p,bounds(),radius());
+ vec2 v=p/bounds();
+ float mask=smoothstep(6.,16.,-d);
+ return faceCurvature*min(bounds().y,40.)*max(0.,1.-dot(v,v)*.5)*mask;
 }
 vec3 linearize(vec3 c){return pow(max(c,vec3(0.)),vec3(2.2));}
 vec3 encode(vec3 c){return pow(clamp(c,0.,1.),vec3(1./2.2));}
@@ -89,6 +101,12 @@ void main(){
  float edgeDistance=max(0.,-d)*size.x/320.;
  float micro=exp(-pow(edgeDistance/2.0,2.));
  vec2 q=xy+lateral+outgoing+refined*n.xy*micro*refraction*.045;
+ float faceEnabled=step(5.5,thinShell);
+ float interior=smoothstep(6.,16.,-d);
+ vec2 fg=vec2(faceHeight(p+vec2(.5,0.))-faceHeight(p-vec2(.5,0.)),faceHeight(p+vec2(0.,.5))-faceHeight(p-vec2(0.,.5)));
+ vec3 fn=normalize(vec3(-g-fg,1.));
+ vec3 fr=refract(-v,fn,1./ior);
+ q+=faceEnabled*interior*faceRefraction*travel*(fr.xy/max(.35,abs(fr.z))-ray.xy/max(.35,abs(ray.z)));
  vec3 c=blurred(q);c.r=blurred(q-n.xy*dispersion*refraction*thickness).r;c.b=blurred(q+n.xy*dispersion*refraction*thickness).b;
  float neutral=mix(.933,.125,dark);vec3 base=linearize(vec3(neutral));
  c=mix(c,base,tint);c=mix(base,c,transmission);c=mix(c,base,contrast*mix(.22,.06,shell));
@@ -150,12 +168,22 @@ void main(){
  float darkBand=exp(-pow((edgeDistance-1.8)/max(.5,reflectionWidth*1.5),2.));
  result*=1.-directional*darkEdgeStrength*adaptiveContrast*bright*darkBand*slopeGate*(.35+.65*vertical);
  result=mix(result,max(result,c),ambientLift*mix(.12,.03,shell));
+ // Independent interior reflection budget; zero strength leaves v0.4.11 intact.
+ vec3 faceRay=reflect(-v,fn);
+ vec2 fu=clamp(faceRay.xy*.45+.5,vec2(.02),vec2(.98));
+ float fo=faceRoughness*.25;
+ vec3 faceStudio=(linearize(texture(environmentMap,fu).rgb)*2.+linearize(texture(environmentMap,clamp(fu+vec2(0.,fo),0.,1.)).rgb)+linearize(texture(environmentMap,clamp(fu-vec2(0.,fo),0.,1.)).rgb))*.25;
+ float faceGain=mix(1.,mix(1.35,.55,smoothstep(.025,.75,localLum)),faceAdaptive);
+ float faceWeight=faceEnabled*interior*faceReflection*faceGain*mix(.35,1.,pow(clamp(abs(p.y)/bounds().y,0.,1.),mix(3.,.7,faceFalloff)));
+ faceWeight=clamp(faceWeight,0.,.35);
+ vec3 faceColor=1.-exp(-faceStudio*env*exposure*2.2);
+ result=mix(result,faceColor,faceWeight);
  // Diagnostic modes reuse the F-D2-only model uniform; no ABI change.
  vec3 outputColor=encode(result);
- if(model>0.5 && model<1.5) outputColor=n*.5+.5;
+ if(model>0.5 && model<1.5) outputColor=normalize(mix(n,fn,faceEnabled*interior))*.5+.5;
  else if(model>1.5 && model<2.5) outputColor=vec3(clamp(.5+(q-xy)/48.,0.,1.),.5);
  else if(model>2.5 && model<3.5) outputColor=encode(c);
- else if(model>3.5 && model<4.5) outputColor=encode(reflectionColor*weight+vec3(glint));
- else if(model>4.5) outputColor=vec3(total);
+ else if(model>3.5 && model<4.5) outputColor=encode((reflectionColor*weight+vec3(glint))*(1.-faceWeight)+faceColor*faceWeight);
+ else if(model>4.5) outputColor=vec3(total*(1.-faceWeight)+faceWeight);
  fragColor=vec4(mix(bg,outputColor,alpha),1.);
 }
