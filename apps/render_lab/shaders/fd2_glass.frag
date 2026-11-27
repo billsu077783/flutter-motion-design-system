@@ -50,7 +50,7 @@ float heightAt(vec2 p){
  float dome=max(0.,1.-dot(v*v,v*v)*.5);
  float legacy=e*(.45+depth)*sqrt(max(0.,u*(2.-u)))+(crown*38.*dome)*smoothstep(0.,1.,u);
  float thin=e*(.24+depth*.65)*sin(u*1.5707963)+crown*18.*dome*smoothstep(0.,1.,u);
- float dual=step(2.5,thinShell);
+ float dual=step(2.5,thinShell)*(1.-step(3.5,thinShell));
  float face=surfaceCurvature*min(bounds().y,40.)*max(0.,1.-dot(v,v)*.5)*smoothstep(0.,1.,u);
  return mix(legacy,thin,min(thinShell,1.))+dual*face;
 }
@@ -66,7 +66,8 @@ vec3 envSample(vec3 r){
 float smith(float nv,float k){return nv/max(.001,nv*(1.-k)+k);}
 void main(){
  float refined=step(1.5,thinShell);
- float dual=step(2.5,thinShell);
+ float dual=step(2.5,thinShell)*(1.-step(3.5,thinShell));
+ float localized=step(3.5,thinShell);
  float shell=min(thinShell,1.);
  vec2 xy=FlutterFragCoord().xy/size*vec2(320.,200.);vec2 p=xy-vec2(160.,100.);
  float d=sd(p,bounds(),radius());vec3 bg=sampleAt(xy);
@@ -120,6 +121,12 @@ void main(){
  float dualDir=vertical*mix(topReflection,bottomReflection,step(0.,axis.y))+(1.-vertical)*sideReflection;
  float dualFine=clamp(edgeHighlight*highlight*rim*band*slopeGate*dualDir*adaptive*.48,0.,.42);
  edge=mix(edge,mix(fine,dualFine,dual),refined);
+ // Preserve refined baseline; add only a localized lower reflection lobe.
+ float lower=pow(max(0.,axis.y),4.);
+ float lateralMask=exp(-pow((p.x/bounds().x+.18)/.62,2.));
+ float lowerBand=exp(-pow((edgeDistance-.85)/1.05,2.));
+ float localGlint=clamp(edgeHighlight*highlight*rim*bottomReflection*lower*lateralMask*lowerBand*slopeGate*adaptive*.16,0.,.12);
+ edge+=localized*localGlint*(1.-edge);
  float faceMask=smoothstep(2.,6.,edgeDistance);
  float faceBand=pow(clamp(abs(p.y)/bounds().y,0.,1.),mix(3.,.8,surfaceFalloff));
  float broad=dual*softReflection*highlight*faceMask*(.15+.85*faceBand)*mix(.8,.45,smoothstep(.025,.7,localLum));
