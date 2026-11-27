@@ -56,11 +56,7 @@ float heightAt(vec2 p){
  float thin=e*(.24+depth*.65)*sin(u*1.5707963)+crown*18.*dome*smoothstep(0.,1.,u);
  float dual=step(2.5,thinShell)*(1.-step(3.5,thinShell));
  float face=surfaceCurvature*min(bounds().y,40.)*max(0.,1.-dot(v,v)*.5)*smoothstep(0.,1.,u);
- // v0.4.13: shallow continuous crown, with zero slope at the rim.
- float unified=step(6.5,thinShell)*(1.-step(7.5,thinShell));
- float interior=smoothstep(8.,22.,-d);
- float gentle=max(0.,1.-dot(v,v)*.5);
- return mix(legacy,thin,min(thinShell,1.))+dual*face+unified*surfaceCurvature*min(bounds().y,40.)*gentle*interior;
+ return mix(legacy,thin,min(thinShell,1.))+dual*face;
 }
 vec3 linearize(vec3 c){return pow(max(c,vec3(0.)),vec3(2.2));}
 vec3 encode(vec3 c){return pow(clamp(c,0.,1.),vec3(1./2.2));}
@@ -80,7 +76,7 @@ void main(){
  float shell=min(thinShell,1.);
  vec2 xy=FlutterFragCoord().xy/size*vec2(320.,200.);vec2 p=xy-vec2(160.,100.);
  float d=sd(p,bounds(),radius());vec3 bg=sampleAt(xy);
- float sh=exp(-max(0.,sd(p-vec2(0.,mix(5.,2.,shell)),bounds(),radius()))*mix(.24,.48,shell))*shadow*.65;bg*=1.-sh;
+ float sh=exp(-max(0.,sd(p-vec2(0.,mix(5.,2.,shell)),bounds(),radius()))*mix(.24,.48,shell))*shadow*.65;bg*=1.-sh; float contact=exp(-max(0.,sd(p-vec2(0.,5.),bounds(),radius()))/5.)*.19; bg*=1.-step(13.5,thinShell)*contact;
  float alpha=clamp(.5-d,0.,1.);if(alpha<=0.){fragColor=vec4(bg,1.);return;}
  vec2 g=vec2(heightAt(p+vec2(.5,0.))-heightAt(p-vec2(.5,0.)),heightAt(p+vec2(0.,.5))-heightAt(p-vec2(0.,.5)));
  vec3 n=normalize(vec3(-g,1.)),v=vec3(0.,0.,1.);
@@ -93,11 +89,6 @@ void main(){
  float edgeDistance=max(0.,-d)*size.x/320.;
  float micro=exp(-pow(edgeDistance/2.0,2.));
  vec2 q=xy+lateral+outgoing+refined*n.xy*micro*refraction*.045;
- // A: interior-only lens displacement; baseline rim is untouched.
- float lens=step(7.5,thinShell)*(1.-step(8.5,thinShell));
- float faceGate=smoothstep(3.,12.,-d);
- vec2 lensUV=p/bounds();
- q-=lens*faceGate*lensUV*(1.-.35*dot(lensUV,lensUV))*surfaceCurvature*160.;
  vec3 c=blurred(q);c.r=blurred(q-n.xy*dispersion*refraction*thickness).r;c.b=blurred(q+n.xy*dispersion*refraction*thickness).b;
  float neutral=mix(.933,.125,dark);vec3 base=linearize(vec3(neutral));
  c=mix(c,base,tint);c=mix(base,c,transmission);c=mix(c,base,contrast*mix(.22,.06,shell));
@@ -152,58 +143,57 @@ void main(){
  float weight=clamp(F*(mix(.35,.10,shell)+surfaceReflection*2.)+edge+broad,0.,.65);
  // Allocate the directional glint from the same reflection budget.
  float glint=clamp(spec*surfaceReflection*highlight*.16,0.,.12);
- // B: sample the existing studio environment using a continuous virtual face normal.
- float faceReflect=step(8.5,thinShell)*(1.-step(9.5,thinShell));
- vec2 uvFace=p/bounds();
- vec3 faceNormal=normalize(vec3(uvFace*surfaceCurvature*12.,1.));
- vec3 faceStudio=envSample(reflect(-v,faceNormal));
- float faceWeight=faceReflect*faceGate*softReflection;
  float total=clamp(weight+glint,0.,.72);
  vec3 reflectionColor=mix(reflected,max(reflected,vec3(.85)),refined*band*slopeGate*.65);
  reflectionColor=mix(reflectionColor,max(reflectionColor,vec3(.65)),dual*faceMask*faceBand*.45);
  vec3 result=c*(1.-total)+reflectionColor*weight+vec3(glint);
- // Energy-bounded reflection, not an additive white stripe.
- vec3 faceRadiance=vec3(1.)-exp(-faceStudio*env*exposure*2.2);
- float extra=min(faceWeight,max(0.,.72-total));
- result=result*(1.-extra)+faceRadiance*extra;
  float darkBand=exp(-pow((edgeDistance-1.8)/max(.5,reflectionWidth*1.5),2.));
  result*=1.-directional*darkEdgeStrength*adaptiveContrast*bright*darkBand*slopeGate*(.35+.65*vertical);
  result=mix(result,max(result,c),ambientLift*mix(.12,.03,shell));
  // Diagnostic modes reuse the F-D2-only model uniform; no ABI change.
  vec3 baseline=result;
- float optical=step(9.5,thinShell);
- float gate=smoothstep(6.,18.,-d);
+ float modeA=step(10.5,thinShell)*(1.-step(11.5,thinShell));
+ float modeB=step(11.5,thinShell)*(1.-step(12.5,thinShell));
+ float modeC=step(12.5,thinShell)*(1.-step(13.5,thinShell));
+ float modeD=step(13.5,thinShell);
+ float gate=smoothstep(5.,15.,-d);
  vec2 u=p/bounds();
- // Analytic shallow ellipsoid front and flatter rear, in scene units.
- vec3 front=normalize(vec3(u*surfaceCurvature*18.,1.));
- vec3 back=normalize(vec3(-u*surfaceCurvature*3.,1.));
- vec3 insideRay=refract(-v,front,1./ior);
- vec3 outsideRay=refract(insideRay,back,ior);
- vec2 offset=insideRay.xy/max(.3,abs(insideRay.z))*travel+
- outsideRay.xy/max(.3,abs(outsideRay.z))*bounds().y*.65;
- vec3 transmitted=blurred(xy+offset);
- transmitted=mix(transmitted,base,tint);
- transmitted=mix(base,transmitted,transmission);
- transmitted=mix(transmitted,base,contrast*.06);
- float faceF=f0+(1.-f0)*pow(1.-max(0.,front.z),5.);
- vec3 faceR=reflect(-v,front);
- // Spatially varying studio reflection plus local scene proxy, not real environment capture.
- vec3 lightField=mix(envSample(faceR),blurred(xy+faceR.xy*45.),.45);
- vec3 reflectedFace=1.-exp(-lightField*env*exposure);
- float budget=clamp(faceF+softReflection*.35,0.,.35);
- vec3 candidate=mix(transmitted,reflectedFace,budget);
- float blend=optical*gate*clamp(surfaceCurvature*20.,0.,1.);
- result=mix(baseline,candidate,blend);
+ // A: first internal round-trip approximation, with a bounded ghost contribution.
+ vec3 internalRay=refract(-v,normalize(vec3(u*.28,1.)),1./ior);
+ vec2 pathOffset=internalRay.xy/max(.35,abs(internalRay.z))*travel*3.;
+ vec3 bounce=blurred(q+pathOffset);
+ float bounceWeight=clamp(softReflection*.55,0.,.22)*gate;
+ vec3 aResult=mix(result,bounce,bounceWeight);
+ // B: local luminance-dependent scatter, independent of reflection roughness.
+ vec3 sharp=linearize(sampleAt(q));
+ vec3 diffuse=linearize(texture(softScene,clamp(q/vec2(320.,200.),vec2(.001),vec2(.999))).rgb);
+ float localContrast=length(sharp-diffuse);
+ float scatter=clamp(.65+localContrast*.65-localLum*.25,.25,.95);
+ vec3 adaptiveT=mix(sharp,diffuse,scatter);
+ adaptiveT=mix(adaptiveT,base,tint);
+ adaptiveT=mix(base,adaptiveT,transmission);
+ vec3 bResult=result+(adaptiveT-c)*(1.-total)*gate*.85;
+ // C: analytic high-contrast studio field, with non-saturating tone mapping.
+ vec3 fn=normalize(vec3(u*.32,1.));
+ vec2 rr=reflect(-v,fn).xy;
+ float key=exp(-dot((rr-vec2(-.35,.28))*vec2(2.,5.),(rr-vec2(-.35,.28))*vec2(2.,5.)));
+ float fill=exp(-dot((rr-vec2(.48,-.22))*vec2(5.,2.),(rr-vec2(.48,-.22))*vec2(5.,2.)));
+ vec3 hdr=vec3(.035,.045,.065)+key*vec3(3.8,3.5,3.2)+fill*vec3(.55,.8,1.3);
+ vec3 mapped=hdr*exposure/(1.+hdr*exposure);
+ float cw=clamp(softReflection*.7,0.,.28)*gate;
+ vec3 cResult=mix(result,mapped,cw);
+ // D: interior depth shading and offset soft contact shadow outside the glass.
+ float depthShade=exp(-max(0.,-d)/8.)*smoothstep(0.,1.,-d);
+ vec3 dResult=result*(1.-gate*depthShade*.22)+c*gate*.025;
+ result=mix(result,aResult,modeA);
+ result=mix(result,bResult,modeB);
+ result=mix(result,cResult,modeC);
+ result=mix(result,dResult,modeD);
  vec3 outputColor=encode(result);
  if(model>0.5 && model<1.5) outputColor=n*.5+.5;
  else if(model>1.5 && model<2.5) outputColor=vec3(clamp(.5+(q-xy)/48.,0.,1.),.5);
  else if(model>2.5 && model<3.5) outputColor=encode(c);
- else if(model>3.5 && model<4.5) outputColor=encode((reflectionColor*weight+vec3(glint))*(1.-extra)+faceRadiance*extra);
- else if(model>4.5 && model<5.5) outputColor=vec3(mix(total*(1.-extra)+extra,budget,blend));
- else if(model>5.5) outputColor=clamp(abs(encode(result)-encode(baseline))*8.,0.,1.);
- if(model>0.5 && model<1.5) outputColor=normalize(mix(n,front,blend))*.5+.5;
- if(model>1.5 && model<2.5) outputColor=vec3(clamp(.5+mix(q-xy,offset,blend)/48.,0.,1.),.5);
- if(model>2.5 && model<3.5) outputColor=encode(mix(c,transmitted,blend));
- if(model>3.5 && model<4.5) outputColor=encode(mix((reflectionColor*weight+vec3(glint))*(1.-extra)+faceRadiance*extra,reflectedFace*budget,blend));
+ else if(model>3.5 && model<4.5) outputColor=encode(reflectionColor*weight+vec3(glint));
+ else if(model>4.5 && model<5.5) outputColor=vec3(total); else if(model>5.5) outputColor=clamp(abs(encode(result)-encode(baseline))*8.,0.,1.);
  fragColor=vec4(mix(bg,outputColor,alpha),1.);
 }
