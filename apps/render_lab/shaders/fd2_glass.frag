@@ -153,7 +153,7 @@ void main(){
  // Allocate the directional glint from the same reflection budget.
  float glint=clamp(spec*surfaceReflection*highlight*.16,0.,.12);
  // B: sample the existing studio environment using a continuous virtual face normal.
- float faceReflect=step(8.5,thinShell);
+ float faceReflect=step(8.5,thinShell)*(1.-step(9.5,thinShell));
  vec2 uvFace=p/bounds();
  vec3 faceNormal=normalize(vec3(uvFace*surfaceCurvature*12.,1.));
  vec3 faceStudio=envSample(reflect(-v,faceNormal));
@@ -170,11 +170,40 @@ void main(){
  result*=1.-directional*darkEdgeStrength*adaptiveContrast*bright*darkBand*slopeGate*(.35+.65*vertical);
  result=mix(result,max(result,c),ambientLift*mix(.12,.03,shell));
  // Diagnostic modes reuse the F-D2-only model uniform; no ABI change.
+ vec3 baseline=result;
+ float optical=step(9.5,thinShell);
+ float gate=smoothstep(6.,18.,-d);
+ vec2 u=p/bounds();
+ // Analytic shallow ellipsoid front and flatter rear, in scene units.
+ vec3 front=normalize(vec3(u*surfaceCurvature*18.,1.));
+ vec3 back=normalize(vec3(-u*surfaceCurvature*3.,1.));
+ vec3 insideRay=refract(-v,front,1./ior);
+ vec3 outsideRay=refract(insideRay,back,ior);
+ vec2 offset=insideRay.xy/max(.3,abs(insideRay.z))*travel+
+ outsideRay.xy/max(.3,abs(outsideRay.z))*bounds().y*.65;
+ vec3 transmitted=blurred(xy+offset);
+ transmitted=mix(transmitted,base,tint);
+ transmitted=mix(base,transmitted,transmission);
+ transmitted=mix(transmitted,base,contrast*.06);
+ float faceF=f0+(1.-f0)*pow(1.-max(0.,front.z),5.);
+ vec3 faceR=reflect(-v,front);
+ // Spatially varying studio reflection plus local scene proxy, not real environment capture.
+ vec3 lightField=mix(envSample(faceR),blurred(xy+faceR.xy*45.),.45);
+ vec3 reflectedFace=1.-exp(-lightField*env*exposure);
+ float budget=clamp(faceF+softReflection*.35,0.,.35);
+ vec3 candidate=mix(transmitted,reflectedFace,budget);
+ float blend=optical*gate*clamp(surfaceCurvature*20.,0.,1.);
+ result=mix(baseline,candidate,blend);
  vec3 outputColor=encode(result);
  if(model>0.5 && model<1.5) outputColor=n*.5+.5;
  else if(model>1.5 && model<2.5) outputColor=vec3(clamp(.5+(q-xy)/48.,0.,1.),.5);
  else if(model>2.5 && model<3.5) outputColor=encode(c);
  else if(model>3.5 && model<4.5) outputColor=encode((reflectionColor*weight+vec3(glint))*(1.-extra)+faceRadiance*extra);
- else if(model>4.5) outputColor=vec3(total*(1.-extra)+extra);
+ else if(model>4.5 && model<5.5) outputColor=vec3(mix(total*(1.-extra)+extra,budget,blend));
+ else if(model>5.5) outputColor=clamp(abs(encode(result)-encode(baseline))*8.,0.,1.);
+ if(model>0.5 && model<1.5) outputColor=normalize(mix(n,front,blend))*.5+.5;
+ if(model>1.5 && model<2.5) outputColor=vec3(clamp(.5+mix(q-xy,offset,blend)/48.,0.,1.),.5);
+ if(model>2.5 && model<3.5) outputColor=encode(mix(c,transmitted,blend));
+ if(model>3.5 && model<4.5) outputColor=encode(mix((reflectionColor*weight+vec3(glint))*(1.-extra)+faceRadiance*extra,reflectedFace*budget,blend));
  fragColor=vec4(mix(bg,outputColor,alpha),1.);
 }
