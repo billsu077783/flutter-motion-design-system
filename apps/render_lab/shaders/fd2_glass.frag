@@ -35,6 +35,10 @@ uniform float sideReflection;
 uniform float softReflection;
 uniform float surfaceCurvature;
 uniform float surfaceFalloff;
+uniform float reflectionWidth;
+uniform float reflectionFalloff;
+uniform float adaptiveContrast;
+uniform float darkEdgeStrength;
 uniform sampler2D scene;
 uniform sampler2D softScene;
 uniform sampler2D environmentMap;
@@ -67,7 +71,8 @@ float smith(float nv,float k){return nv/max(.001,nv*(1.-k)+k);}
 void main(){
  float refined=step(1.5,thinShell);
  float dual=step(2.5,thinShell)*(1.-step(3.5,thinShell));
- float localized=step(3.5,thinShell);
+ float localized=step(3.5,thinShell)*(1.-step(4.5,thinShell));
+ float directional=step(4.5,thinShell);
  float shell=min(thinShell,1.);
  vec2 xy=FlutterFragCoord().xy/size*vec2(320.,200.);vec2 p=xy-vec2(160.,100.);
  float d=sd(p,bounds(),radius());vec3 bg=sampleAt(xy);
@@ -127,6 +132,11 @@ void main(){
  float lowerBand=exp(-pow((edgeDistance-.85)/1.05,2.));
  float localGlint=clamp(edgeHighlight*highlight*rim*bottomReflection*lower*lateralMask*lowerBand*slopeGate*adaptive*.16,0.,.12);
  edge+=localized*localGlint*(1.-edge);
+ float directionalBand=exp(-pow(abs(edgeDistance-.55)/max(.35,highlightWidth*12.*reflectionWidth),reflectionFalloff));
+ float bright=smoothstep(.18,.78,localLum);
+ float directionalGain=mix(adaptive,1.15+bright*.65,adaptiveContrast);
+ float directionalFine=clamp(edgeHighlight*highlight*rim*directionalBand*slopeGate*dualDir*directionalGain*.48,0.,.42);
+ edge=mix(edge,directionalFine,directional);
  float faceMask=smoothstep(2.,6.,edgeDistance);
  float faceBand=pow(clamp(abs(p.y)/bounds().y,0.,1.),mix(3.,.8,surfaceFalloff));
  float broad=dual*softReflection*highlight*faceMask*(.15+.85*faceBand)*mix(.8,.45,smoothstep(.025,.7,localLum));
@@ -137,6 +147,8 @@ void main(){
  vec3 reflectionColor=mix(reflected,max(reflected,vec3(.85)),refined*band*slopeGate*.65);
  reflectionColor=mix(reflectionColor,max(reflectionColor,vec3(.65)),dual*faceMask*faceBand*.45);
  vec3 result=c*(1.-total)+reflectionColor*weight+vec3(glint);
+ float darkBand=exp(-pow((edgeDistance-1.8)/max(.5,reflectionWidth*1.5),2.));
+ result*=1.-directional*darkEdgeStrength*adaptiveContrast*bright*darkBand*slopeGate*(.35+.65*vertical);
  result=mix(result,max(result,c),ambientLift*mix(.12,.03,shell));
  // Diagnostic modes reuse the F-D2-only model uniform; no ABI change.
  vec3 outputColor=encode(result);
