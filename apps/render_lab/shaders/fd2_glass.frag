@@ -44,7 +44,7 @@ float heightAt(vec2 p){
  float dome=max(0.,1.-dot(v*v,v*v)*.5);
  float legacy=e*(.45+depth)*sqrt(max(0.,u*(2.-u)))+(crown*38.*dome)*smoothstep(0.,1.,u);
  float thin=e*(.24+depth*.65)*sin(u*1.5707963)+crown*18.*dome*smoothstep(0.,1.,u);
- return mix(legacy,thin,thinShell);
+ return mix(legacy,thin,min(thinShell,1.));
 }
 vec3 linearize(vec3 c){return pow(max(c,vec3(0.)),vec3(2.2));}
 vec3 encode(vec3 c){return pow(clamp(c,0.,1.),vec3(1./2.2));}
@@ -57,22 +57,26 @@ vec3 envSample(vec3 r){
 }
 float smith(float nv,float k){return nv/max(.001,nv*(1.-k)+k);}
 void main(){
+ float refined=step(1.5,thinShell);
+ float shell=min(thinShell,1.);
  vec2 xy=FlutterFragCoord().xy/size*vec2(320.,200.);vec2 p=xy-vec2(160.,100.);
  float d=sd(p,bounds(),radius());vec3 bg=sampleAt(xy);
- float sh=exp(-max(0.,sd(p-vec2(0.,mix(5.,2.,thinShell)),bounds(),radius()))*mix(.24,.48,thinShell))*shadow*.65;bg*=1.-sh;
+ float sh=exp(-max(0.,sd(p-vec2(0.,mix(5.,2.,shell)),bounds(),radius()))*mix(.24,.48,shell))*shadow*.65;bg*=1.-sh;
  float alpha=clamp(.5-d,0.,1.);if(alpha<=0.){fragColor=vec4(bg,1.);return;}
  vec2 g=vec2(heightAt(p+vec2(.5,0.))-heightAt(p-vec2(.5,0.)),heightAt(p+vec2(0.,.5))-heightAt(p-vec2(0.,.5)));
  vec3 n=normalize(vec3(-g,1.)),v=vec3(0.,0.,1.);
  vec3 ray=refract(-v,n,1./ior);
  // Parallel back interface: lateral travel inside the dielectric slab.
  vec3 exitRay=refract(ray,vec3(0.,0.,1.),ior);
- float travel=min(bounds().y*.8,refraction*thickness*(1.+depth)*mix(1.,1.65,thinShell));
+ float travel=min(bounds().y*.8,refraction*thickness*(1.+depth)*mix(1.,1.65,shell));
  vec2 lateral=ray.xy/max(.35,abs(ray.z))*travel;
  vec2 outgoing=exitRay.xy/max(.45,abs(exitRay.z))*travel*.28;
- vec2 q=xy+lateral+outgoing;
+ float edgeDistance=max(0.,-d)*size.x/320.;
+ float micro=exp(-pow(edgeDistance/2.0,2.));
+ vec2 q=xy+lateral+outgoing+refined*n.xy*micro*refraction*.045;
  vec3 c=blurred(q);c.r=blurred(q-n.xy*dispersion*refraction*thickness).r;c.b=blurred(q+n.xy*dispersion*refraction*thickness).b;
  float neutral=mix(.933,.125,dark);vec3 base=linearize(vec3(neutral));
- c=mix(c,base,tint);c=mix(base,c,transmission);c=mix(c,base,contrast*mix(.22,.06,thinShell));
+ c=mix(c,base,tint);c=mix(base,c,transmission);c=mix(c,base,contrast*mix(.22,.06,shell));
  float f0=pow((ior-1.)/(ior+1.),2.);float nv=max(.001,n.z);
  float F=f0+(1.-f0)*pow(1.-nv,5.)*fresnel;
  vec3 r=reflect(-v,n);
@@ -90,25 +94,32 @@ void main(){
  float spec=min(2.,D*smith(nv,k)*smith(nl,k)*Fs/max(.004,4.*nv*nl))*nl;
  // Reflection follows the same normal field as transmission; no distance-based outline.
  float slope=length(n.xy);
- float width=clamp(highlightWidth+bevelWidth*.35*(1.-thinShell),.025,.7);
- float grazing=exp(-pow((slope-mix(.78,.48,thinShell))/width,2.));
+ float width=clamp(highlightWidth+bevelWidth*.35*(1.-shell),.025,.7);
+ float grazing=exp(-pow((slope-mix(.78,.48,shell))/width,2.));
  // Limit the thin-shell reflection footprint in logical display pixels.
  float pixelScale=size.x/320.;
- grazing*=mix(1.,exp(-pow(max(0.,-d)*pixelScale/2.2,2.)),thinShell);
+ grazing*=mix(1.,exp(-pow(max(0.,-d)*pixelScale/2.2,2.)),shell);
  float dir=clamp(dot(normalize(n.xy+vec2(.00001)),normalize(l.xy))*.5+.5,0.,1.);
  float edge=clamp(edgeHighlight*highlight*rim*grazing*pow(dir,3.)*.62,0.,.48);
- float weight=clamp(F*(mix(.35,.10,thinShell)+surfaceReflection*2.)+edge,0.,.65);
+ // Narrow optical glint: independent of shell geometry and broad reflection.
+ float slopeGate=smoothstep(.035,.22,slope);
+ float band=exp(-pow((edgeDistance-.55)/max(.35,highlightWidth*12.),2.));
+ float adaptive=mix(1.25,.78,smoothstep(.025,.7,localLum));
+ float fine=clamp(edgeHighlight*highlight*rim*band*slopeGate*pow(dir,2.)*adaptive*.48,0.,.42);
+ edge=mix(edge,fine,refined);
+ float weight=clamp(F*(mix(.35,.10,shell)+surfaceReflection*2.)+edge,0.,.65);
  // Allocate the directional glint from the same reflection budget.
  float glint=clamp(spec*surfaceReflection*highlight*.16,0.,.12);
  float total=clamp(weight+glint,0.,.72);
- vec3 result=c*(1.-total)+reflected*weight+vec3(glint);
- result=mix(result,max(result,c),ambientLift*mix(.12,.03,thinShell));
+ vec3 reflectionColor=mix(reflected,max(reflected,vec3(.85)),refined*band*slopeGate*.65);
+ vec3 result=c*(1.-total)+reflectionColor*weight+vec3(glint);
+ result=mix(result,max(result,c),ambientLift*mix(.12,.03,shell));
  // Diagnostic modes reuse the F-D2-only model uniform; no ABI change.
  vec3 outputColor=encode(result);
  if(model>0.5 && model<1.5) outputColor=n*.5+.5;
  else if(model>1.5 && model<2.5) outputColor=vec3(clamp(.5+(q-xy)/48.,0.,1.),.5);
  else if(model>2.5 && model<3.5) outputColor=encode(c);
- else if(model>3.5 && model<4.5) outputColor=encode(reflected*weight+vec3(glint));
+ else if(model>3.5 && model<4.5) outputColor=encode(reflectionColor*weight+vec3(glint));
  else if(model>4.5) outputColor=vec3(total);
  fragColor=vec4(mix(bg,outputColor,alpha),1.);
 }
