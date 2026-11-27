@@ -2,7 +2,6 @@ import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'reference_stub.dart' if (dart.library.js_interop) 'reference_web.dart';
 void main()=>runApp(const RenderLab());
 const specs=<String,List<double>>{
 'ior':[1,2,.01,1.46],'roughness':[0,.65,.01,.08],'thickness':[0,1.5,.01,.42],'transmission':[0,1,.01,1],'envMapIntensity':[0,4,.05,1.5],'bevel':[.02,.32,.01,.16],'depth':[.05,.5,.01,.20],'tint':[0,.8,.01,0],'angle':[0,360,1,315],'exposure':[.5,2,.05,1.15],'blur':[0,18,.5,5],'rimLight':[0,1,.05,.65],'shadow':[0,.6,.02,.22],'crown':[0,.15,.005,.06],'refraction':[0,48,1,24],'highlight':[0,1.5,.05,.85],'mass':[.5,3,.1,1],'stiffness':[60,380,1,180],'damping':[4,70,1,12],'bevelWidth':[.05,.45,.01,.18],'fresnel':[0,1,.05,.65],'contrast':[0,1,.05,.22],'dispersion':[0,.3,.01,.05],'edgeHighlight':[0,2,.05,1.35],'highlightWidth':[.02,.5,.01,.18],'surfaceReflection':[0,.6,.01,.18],'ambientLift':[0,.4,.01,.10],'refractionDetail':[0,1,.05,.25]};
@@ -33,7 +32,7 @@ Widget tile(String name,ui.FragmentShader? shader,double model,{int? version})=>
 @override Widget build(BuildContext context)=>MaterialApp(theme:ThemeData.dark(),home:Scaffold(body:SafeArea(child:LayoutBuilder(builder:(context,box){
 final w=math.min(box.maxWidth-24,960.0);
 return Center(child:SizedBox(width:w,child:Column(children:[
-const Text('FMDS Render Lab v0.4.16',style:TextStyle(fontSize:20)),
+const Text('FMDS Render Lab v0.4.16-r1',style:TextStyle(fontSize:20)),
 Wrap(spacing:2,children:[
 TextButton(onPressed:(){target=target==1?0:1;start();},child:const Text('Morph')),
 TextButton(onPressed:(){setState((){target=target==1?0:1;progress=target;velocity=0;});},child:const Text('Shape')),
