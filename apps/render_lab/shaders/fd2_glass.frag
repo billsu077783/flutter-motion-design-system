@@ -57,7 +57,7 @@ float heightAt(vec2 p){
  float dual=step(2.5,thinShell)*(1.-step(3.5,thinShell));
  float face=surfaceCurvature*min(bounds().y,40.)*max(0.,1.-dot(v,v)*.5)*smoothstep(0.,1.,u);
  // v0.4.13: shallow continuous crown, with zero slope at the rim.
- float unified=step(6.5,thinShell);
+ float unified=step(6.5,thinShell)*(1.-step(7.5,thinShell));
  float interior=smoothstep(8.,22.,-d);
  float gentle=max(0.,1.-dot(v,v)*.5);
  return mix(legacy,thin,min(thinShell,1.))+dual*face+unified*surfaceCurvature*min(bounds().y,40.)*gentle*interior;
@@ -93,6 +93,11 @@ void main(){
  float edgeDistance=max(0.,-d)*size.x/320.;
  float micro=exp(-pow(edgeDistance/2.0,2.));
  vec2 q=xy+lateral+outgoing+refined*n.xy*micro*refraction*.045;
+ // A: interior-only lens displacement; baseline rim is untouched.
+ float lens=step(7.5,thinShell)*(1.-step(8.5,thinShell));
+ float faceGate=smoothstep(3.,12.,-d);
+ vec2 lensUV=p/bounds();
+ q-=lens*faceGate*lensUV*(1.-.35*dot(lensUV,lensUV))*surfaceCurvature*160.;
  vec3 c=blurred(q);c.r=blurred(q-n.xy*dispersion*refraction*thickness).r;c.b=blurred(q+n.xy*dispersion*refraction*thickness).b;
  float neutral=mix(.933,.125,dark);vec3 base=linearize(vec3(neutral));
  c=mix(c,base,tint);c=mix(base,c,transmission);c=mix(c,base,contrast*mix(.22,.06,shell));
@@ -147,10 +152,20 @@ void main(){
  float weight=clamp(F*(mix(.35,.10,shell)+surfaceReflection*2.)+edge+broad,0.,.65);
  // Allocate the directional glint from the same reflection budget.
  float glint=clamp(spec*surfaceReflection*highlight*.16,0.,.12);
+ // B: sample the existing studio environment using a continuous virtual face normal.
+ float faceReflect=step(8.5,thinShell);
+ vec2 uvFace=p/bounds();
+ vec3 faceNormal=normalize(vec3(uvFace*surfaceCurvature*12.,1.));
+ vec3 faceStudio=envSample(reflect(-v,faceNormal));
+ float faceWeight=faceReflect*faceGate*softReflection;
  float total=clamp(weight+glint,0.,.72);
  vec3 reflectionColor=mix(reflected,max(reflected,vec3(.85)),refined*band*slopeGate*.65);
  reflectionColor=mix(reflectionColor,max(reflectionColor,vec3(.65)),dual*faceMask*faceBand*.45);
  vec3 result=c*(1.-total)+reflectionColor*weight+vec3(glint);
+ // Energy-bounded reflection, not an additive white stripe.
+ vec3 faceRadiance=vec3(1.)-exp(-faceStudio*env*exposure*2.2);
+ float extra=min(faceWeight,max(0.,.72-total));
+ result=result*(1.-extra)+faceRadiance*extra;
  float darkBand=exp(-pow((edgeDistance-1.8)/max(.5,reflectionWidth*1.5),2.));
  result*=1.-directional*darkEdgeStrength*adaptiveContrast*bright*darkBand*slopeGate*(.35+.65*vertical);
  result=mix(result,max(result,c),ambientLift*mix(.12,.03,shell));
@@ -159,7 +174,7 @@ void main(){
  if(model>0.5 && model<1.5) outputColor=n*.5+.5;
  else if(model>1.5 && model<2.5) outputColor=vec3(clamp(.5+(q-xy)/48.,0.,1.),.5);
  else if(model>2.5 && model<3.5) outputColor=encode(c);
- else if(model>3.5 && model<4.5) outputColor=encode(reflectionColor*weight+vec3(glint));
- else if(model>4.5) outputColor=vec3(total);
+ else if(model>3.5 && model<4.5) outputColor=encode((reflectionColor*weight+vec3(glint))*(1.-extra)+faceRadiance*extra);
+ else if(model>4.5) outputColor=vec3(total*(1.-extra)+extra);
  fragColor=vec4(mix(bg,outputColor,alpha),1.);
 }
