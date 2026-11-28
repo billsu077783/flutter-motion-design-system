@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'engine.dart';
+import 'spring.dart';
 
 const specs=<String,List<double>>{
 'ior':[1,2,.01,1.46],'roughness':[0,.65,.01,.08],'thickness':[0,1.5,.01,.42],'transmission':[0,1,.01,1],'envMapIntensity':[0,4,.05,1.5],'bevel':[.02,.32,.01,.16],'depth':[.05,.5,.01,.20],'tint':[0,.8,.01,0],'angle':[0,360,1,315],'exposure':[.5,2,.05,1.15],'blur':[0,18,.5,5],'rimLight':[0,1,.05,.65],'shadow':[0,.6,.02,.22],'crown':[0,.15,.005,.06],'refraction':[0,48,1,24],'highlight':[0,1.5,.05,.85],'mass':[.5,3,.1,1],'stiffness':[60,380,1,180],'damping':[4,70,1,12],'bevelWidth':[.05,.45,.01,.18],'fresnel':[0,1,.05,.65],'contrast':[0,1,.05,.22],'dispersion':[0,.3,.01,.05],'edgeHighlight':[0,2,.05,1.35],'highlightWidth':[.02,.5,.01,.18],'surfaceReflection':[0,.6,.01,.18],'ambientLift':[0,.4,.01,.10],'refractionDetail':[0,1,.05,.25]};
@@ -43,7 +44,14 @@ class FMGlassRenderer implements FMComponentRenderer {
   FMGlassRenderer(this._shader);
   final ui.FragmentShader _shader;
   bool _attached = false, _disposed = false;
-  double _progress = 0;
+  final FMSpring _spring = FMSpring();
+  double _speed = 1;
+  bool get needsFrame => !_spring.settled;
+  void advance(double seconds) {
+    if (!_attached || _disposed) return;
+    _spring.advance(seconds * _speed, mass: optics['mass']!,
+      stiffness: optics['stiffness']!, damping: optics['damping']!);
+  }
   ui.Image? _scene, _soft, _environment;
   bool _dark = false;
   final optics = specs.map((k,v) => MapEntry(k,v[3]));
@@ -61,7 +69,10 @@ class FMGlassRenderer implements FMComponentRenderer {
   Size measure(BoxConstraints constraints, Size contentSize) => constraints.constrain(contentSize);
   @override
   void update(FMComponentState state, FMParameters parameters) {
-    _progress = state.pressed && !parameters.reducedMotion ? parameters.motionIntensity.clamp(0.0,1.0).toDouble() : 0;
+    _speed = parameters.animationSpeed.isFinite ? parameters.animationSpeed.clamp(0.1, 4.0).toDouble() : 1;
+    final target = state.enabled && state.pressed ? parameters.motionIntensity.clamp(0.0,1.0).toDouble() : 0.0;
+    _spring.target = target;
+    if (parameters.reducedMotion) _spring.snap(target);
   }
   @override
   void paint(Canvas canvas, Size size) {
@@ -69,7 +80,7 @@ class FMGlassRenderer implements FMComponentRenderer {
     if (!_attached || _disposed || scene == null || soft == null || environment == null) return;
     final p = {...optics, for(final e in thinDefaults.entries)
       e.key: (optics[e.key]! + e.value - specs[e.key]![3]).clamp(specs[e.key]![0], specs[e.key]![1]).toDouble()};
-    PortPainter(scene, soft, _shader, p, _progress, _dark, 0, environment, 0, 5, lighting).paint(canvas,size);
+    PortPainter(scene, soft, _shader, p, _spring.value, _dark, 0, environment, 0, 5, lighting).paint(canvas,size);
   }
   @override
   void detach() { _attached = false; _scene = null; _soft = null; _environment = null; }
