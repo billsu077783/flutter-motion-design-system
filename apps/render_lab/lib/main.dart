@@ -80,7 +80,7 @@ class FMDSIndex extends StatelessWidget {
       Padding(padding:const EdgeInsets.only(bottom:6),child:Semantics(button:entry.key=='Surface',enabled:entry.key=='Surface',child:InkWell(onTap:entry.key=='Surface'?()=>open(context):null,child:Container(padding:const EdgeInsets.symmetric(horizontal:12,vertical:14),decoration:const BoxDecoration(border:Border(bottom:BorderSide(color:line))),child:Row(children:[Container(width:34,height:34,decoration:BoxDecoration(border:Border.all(color:line),borderRadius:BorderRadius.circular(5)),alignment:Alignment.center,child:Text(entry.key.substring(0,1),style:const TextStyle(color:accent,fontSize:16))),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(entry.key,style:const TextStyle(color:ink,fontSize:15,fontWeight:FontWeight.w600)),const SizedBox(height:4),Text(entry.value,style:const TextStyle(color:muted,fontSize:11))])),tag(entry.key=='Surface'?'PREVIEW >':'PLANNED',live:entry.key=='Surface')]))))),
     const SizedBox(height:24),const Text('FMDS / ENGINEERING PREVIEW',style:TextStyle(color:muted,fontSize:10,letterSpacing:1.5)),
     const SizedBox(height:6),const Text('Glass baseline: v0.4.11 · Platform validation pending',style:TextStyle(color:muted,fontSize:11)),
-  ])))));}
+  ])))));
 }
 class FMEngineGlyph extends CustomPainter {
   final int kind;
