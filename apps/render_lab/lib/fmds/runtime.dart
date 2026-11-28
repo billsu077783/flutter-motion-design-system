@@ -1,13 +1,16 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter/scheduler.dart';
 import 'engine.dart';
 
 /// Owns one component renderer, not the shared engine.
 class FMComponentRuntime extends ChangeNotifier {
   FMComponentRuntime({required this.kind, required FMEngine engine,
     FMComponentState state = const FMComponentState(),
-    FMParameters parameters = const FMParameters()})
+    FMParameters parameters = const FMParameters(), TickerProvider? vsync})
       : _state = state, _parameters = parameters {
     _renderer = _prepare(engine);
+    _ticker = vsync?.createTicker(_tick);
+    _syncTicker();
   }
 
   final FMComponentKind kind;
@@ -15,6 +18,43 @@ class FMComponentRuntime extends ChangeNotifier {
   FMComponentState _state;
   FMParameters _parameters;
   bool _disposed = false;
+  Ticker? _ticker;
+  Duration _last = Duration.zero;
+
+  bool get needsFrame {
+    final renderer = _renderer;
+    return !_disposed && renderer is FMAnimatedRenderer && renderer.needsFrame;
+  }
+
+  void _syncTicker() {
+    final ticker = _ticker;
+    if (ticker == null) return;
+    if (needsFrame && !ticker.isActive) {
+      _last = Duration.zero;
+      ticker.start();
+    } else if (!needsFrame && ticker.isActive) {
+      ticker.stop();
+    }
+  }
+
+  void _tick(Duration elapsed) {
+    final seconds = (elapsed - _last).inMicroseconds / 1000000;
+    _last = elapsed;
+    advance(seconds);
+  }
+
+  /// Also supports hosts with their own frame clock.
+  void advance(double seconds) {
+    _checkAlive();
+    final renderer = _renderer;
+    if (renderer is FMAnimatedRenderer && renderer.needsFrame) {
+      renderer.advance(seconds);
+      _syncTicker();
+      notifyListeners();
+    } else {
+      _syncTicker();
+    }
+  }
 
   FMComponentRenderer _prepare(FMEngine engine) {
     if (!engine.manifest.components.contains(kind)) {
@@ -42,6 +82,7 @@ class FMComponentRuntime extends ChangeNotifier {
     _renderer.update(state, parameters);
     _state = state;
     _parameters = parameters;
+    _syncTicker();
     notifyListeners();
   }
 
@@ -51,6 +92,7 @@ class FMComponentRuntime extends ChangeNotifier {
     final next = _prepare(engine);
     final previous = _renderer;
     _renderer = next;
+    _syncTicker();
     try {
       previous.detach();
     } finally {
@@ -80,6 +122,8 @@ class FMComponentRuntime extends ChangeNotifier {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _ticker?.dispose();
+    _ticker = null;
     try {
       _renderer.detach();
     } finally {
