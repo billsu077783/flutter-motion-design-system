@@ -50,18 +50,54 @@ const FMDSApp({super.key});
 @override Widget build(BuildContext context)=>MaterialApp(debugShowCheckedModeBanner:false,title:'FMDS',theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff7289ad),brightness:Brightness.dark),useMaterial3:true),home:const FMDSIndex());
 }
 class FMDSIndex extends StatelessWidget {
-const FMDSIndex({super.key});
-@override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('FMDS  /  v0.1.0')),body:SafeArea(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:960),child:ListView(padding:const EdgeInsets.all(24),children:[
-const Text('Motion Design System',style:TextStyle(fontSize:32,fontWeight:FontWeight.bold)),
-const Text('Component library · Flutter'),
-const SizedBox(height:28),
-const Text('RENDER ENGINES'),
-const SizedBox(height:12),
-Wrap(spacing:12,runSpacing:12,children:[for(final name in ['Glass','Liquid','Metal','Light']) SizedBox(width:145,child:Card(child:ListTile(title:Text(name),subtitle:Text(name=='Glass'?'v1.0.0 baseline':'Planned'),leading:const Icon(Icons.layers_outlined),onTap:name=='Glass'?()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>const RenderLab())):null)))]),
-const SizedBox(height:28),
-const Text('COMPONENTS'),
-const SizedBox(height:12),
-for(final entry in const {'Surface':'Optical material preview','Button':'Planned','IconButton':'Planned','Switch':'Planned','Slider':'Planned','SelectionDialog':'Planned','Navigation':'Planned'}.entries)
-Card(child:ListTile(title:Text(entry.key),subtitle:Text(entry.value),trailing:Icon(entry.key=='Surface'?Icons.chevron_right:Icons.lock_outline),onTap:entry.key=='Surface'?()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>const RenderLab())):null)),
-])))));}
+  const FMDSIndex({super.key});
+  static const ink=Color(0xffe5edf5);
+  static const muted=Color(0xff91a2b6);
+  static const accent=Color(0xff78e4d0);
+  static const line=Color(0xff293746);
+  void open(BuildContext context)=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>const RenderLab()));
+  Widget tag(String value,{bool live=false})=>Container(padding:const EdgeInsets.symmetric(horizontal:8,vertical:5),decoration:BoxDecoration(border:Border.all(color:live?accent:line),borderRadius:BorderRadius.circular(4)),child:Text(value,style:TextStyle(fontSize:10,letterSpacing:1,color:live?accent:muted)));
+  Widget section(String number,String title,String detail)=>Padding(padding:const EdgeInsets.only(top:28,bottom:12),child:Row(children:[Text(number,style:const TextStyle(color:accent,fontSize:12)),const SizedBox(width:10),Expanded(child:Text(title,style:const TextStyle(color:ink,fontSize:18,fontWeight:FontWeight.w600))),Text(detail,style:const TextStyle(color:muted,fontSize:11))]));
+  @override Widget build(BuildContext context)=>Scaffold(backgroundColor:const Color(0xff0b1119),body:SafeArea(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1120),child:ListView(padding:const EdgeInsets.fromLTRB(20,16,20,32),children:[
+    Row(children:[const Text('FMDS',style:TextStyle(color:ink,fontSize:22,fontWeight:FontWeight.w800,letterSpacing:2)),const SizedBox(width:10),tag('v0.1.1'),const Spacer(),tag('FLUTTER')]),
+    const SizedBox(height:18),const Divider(color:line,height:1),const SizedBox(height:24),
+    const Text('MOTION / MATERIAL / SYSTEM',style:TextStyle(color:accent,fontSize:10,letterSpacing:1.7)),
+    const SizedBox(height:10),
+    const Text('Motion Design\nSystem',style:TextStyle(color:ink,fontSize:38,height:1.06,fontWeight:FontWeight.w700,letterSpacing:-1.5)),
+    const SizedBox(height:12),
+    const Text('Independent rendering engines. Shared component contracts.',style:TextStyle(color:muted,fontSize:14,height:1.5)),
+    const SizedBox(height:18),
+    Wrap(spacing:8,runSpacing:8,children:[tag('iOS'),tag('ANDROID'),tag('WEB'),tag('01 / 04 ENGINES')]),
+    section('01','Render engines','MATERIAL LAB'),
+    LayoutBuilder(builder:(context,c){final count=c.maxWidth>=720?4:2;final width=(c.maxWidth-(count-1)*10)/count;return Wrap(spacing:10,runSpacing:10,children:[for(var i=0;i<4;i++)SizedBox(width:width,child:Semantics(button:i==0,enabled:i==0,child:InkWell(onTap:i==0?()=>open(context):null,borderRadius:BorderRadius.circular(8),child:Container(padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:const Color(0xff101b26),border:Border.all(color:i==0?const Color(0xff477e7c):line),borderRadius:BorderRadius.circular(8)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      SizedBox(height:82,width:double.infinity,child:CustomPaint(painter:FMEngineGlyph(i))),
+      const SizedBox(height:12),Text(['Glass','Liquid','Metal','Light'][i],style:const TextStyle(color:ink,fontSize:19,fontWeight:FontWeight.w600)),
+      const SizedBox(height:7),tag(i==0?'BASELINE 1.0':'PLANNED',live:i==0),
+      const SizedBox(height:8),Text(i==0?'Open lab  >':'Not implemented',style:const TextStyle(color:muted,fontSize:11))
+    ])))))]);}),
+    section('02','Component index','01 / 07 PREVIEWS'),
+    for(final entry in const {'Surface':'Optical surface / Morph','Button':'Interaction / Press','IconButton':'Compact action','Switch':'Binary state','Slider':'Continuous value','SelectionDialog':'Overlay / Morph','Navigation':'Route transitions'}.entries)
+      Padding(padding:const EdgeInsets.only(bottom:6),child:Semantics(button:entry.key=='Surface',enabled:entry.key=='Surface',child:InkWell(onTap:entry.key=='Surface'?()=>open(context):null,child:Container(padding:const EdgeInsets.symmetric(horizontal:12,vertical:14),decoration:const BoxDecoration(border:Border(bottom:BorderSide(color:line))),child:Row(children:[Container(width:34,height:34,decoration:BoxDecoration(border:Border.all(color:line),borderRadius:BorderRadius.circular(5)),alignment:Alignment.center,child:Text(entry.key.substring(0,1),style:const TextStyle(color:accent,fontSize:16))),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(entry.key,style:const TextStyle(color:ink,fontSize:15,fontWeight:FontWeight.w600)),const SizedBox(height:4),Text(entry.value,style:const TextStyle(color:muted,fontSize:11))])),tag(entry.key=='Surface'?'PREVIEW >':'PLANNED',live:entry.key=='Surface')]))))),
+    const SizedBox(height:24),const Text('FMDS / ENGINEERING PREVIEW',style:TextStyle(color:muted,fontSize:10,letterSpacing:1.5)),
+    const SizedBox(height:6),const Text('Glass baseline: v0.4.11 · Platform validation pending',style:TextStyle(color:muted,fontSize:11)),
+  ])))));}
+}
+class FMEngineGlyph extends CustomPainter {
+  final int kind;
+  const FMEngineGlyph(this.kind);
+  @override void paint(Canvas canvas,Size size){
+    final p=Paint()..color=const Color(0xff243646)..strokeWidth=.6;
+    for(double x=0;x<size.width;x+=12){canvas.drawLine(Offset(x,0),Offset(x,size.height),p);}
+    for(double y=0;y<size.height;y+=12){canvas.drawLine(Offset(0,y),Offset(size.width,y),p);}
+    final c=size.center(Offset.zero);
+    final r=math.min(size.width*.30,29.0);
+    final color=[const Color(0xff78e4d0),const Color(0xff679cf0),const Color(0xffaab7c8),const Color(0xffd3a4ff)][kind];
+    final stroke=Paint()..color=color..style=PaintingStyle.stroke..strokeWidth=1.3;
+    if(kind==0){for(int i=2;i>=0;i--){final rect=Rect.fromCenter(center:c+Offset(i*5.0-5,i*-5.0+5),width:r*2.1,height:r*1.35);canvas.drawRRect(RRect.fromRectAndRadius(rect,const Radius.circular(8)),Paint()..color=color.withAlpha(20));canvas.drawRRect(RRect.fromRectAndRadius(rect,const Radius.circular(8)),stroke);}}
+    else if(kind==1){final path=Path()..moveTo(c.dx,c.dy-r)..cubicTo(c.dx+r*1.4,c.dy-r*.3,c.dx+r,c.dy+r,c.dx,c.dy+r)..cubicTo(c.dx-r,c.dy+r,c.dx-r*1.4,c.dy-r*.3,c.dx,c.dy-r)..close();canvas.drawPath(path,stroke);}
+    else if(kind==2){final path=Path()..moveTo(c.dx,c.dy-r)..lineTo(c.dx+r,c.dy-r*.4)..lineTo(c.dx+r,c.dy+r*.5)..lineTo(c.dx,c.dy+r)..lineTo(c.dx-r,c.dy+r*.5)..lineTo(c.dx-r,c.dy-r*.4)..close();canvas.drawPath(path,stroke);canvas.drawLine(c,Offset(c.dx,c.dy+r),stroke);canvas.drawLine(c,Offset(c.dx+r,c.dy-r*.4),stroke);canvas.drawLine(c,Offset(c.dx-r,c.dy-r*.4),stroke);}
+    else{for(int i=1;i<=3;i++){canvas.drawCircle(c,r*i/3,stroke);}canvas.drawLine(c-Offset(r*1.3,0),c+Offset(r*1.3,0),stroke);canvas.drawLine(c-Offset(0,r*1.3),c+Offset(0,r*1.3),stroke);}
+  }
+  @override bool shouldRepaint(covariant FMEngineGlyph oldDelegate)=>oldDelegate.kind!=kind;
+}
 class PortPainter extends CustomPainter{PortPainter(this.image,this.soft,this.shader,this.p,this.progress,this.dark,this.model,this.environment,this.diagnostic,this.profile,this.dual);final Map<String,double> dual;final int profile;final int diagnostic;final ui.Image image,soft,environment;final ui.FragmentShader shader;final Map<String,double> p;final double progress,model;final bool dark;@override void paint(Canvas c,Size s){final values=[s.width,s.height,progress,dark?1.0:0.0,model==0?diagnostic.toDouble():model,for(final k in ['ior','roughness','thickness','transmission','envMapIntensity','bevel','depth','tint','angle','exposure','blur','rimLight','shadow','crown','refraction','highlight','bevelWidth','fresnel','contrast','dispersion','edgeHighlight','highlightWidth','surfaceReflection','ambientLift','refractionDetail']) k=='angle'?p[k]!*math.pi/180:p[k]!];for(int i=0;i<values.length;i++){shader.setFloat(i,values[i]);}if(model==0){shader.setFloat(values.length,profile.toDouble());int j=values.length+1;for(final key in [...dualSpecs.keys,...adaptiveSpecs.keys]){shader.setFloat(j++,dual[key]!);}}shader.setImageSampler(0,image);shader.setImageSampler(1,soft);if(model==0)shader.setImageSampler(2,environment);c.drawRect(Offset.zero&s,Paint()..shader=shader);}@override bool shouldRepaint(covariant PortPainter oldDelegate)=>true;}
