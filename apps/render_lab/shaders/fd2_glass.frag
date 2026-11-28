@@ -42,10 +42,6 @@ uniform float darkEdgeStrength;
 uniform sampler2D scene;
 uniform sampler2D softScene;
 uniform sampler2D environmentMap;
-uniform float geometryStrength;
-uniform float opticalDepth;
-uniform float rearCurvature;
-uniform float geometryReflection;
 out vec4 fragColor;
 float sd(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return length(max(q,0.0))+min(max(q.x,q.y),0.0)-r;}
 vec2 bounds(){return vec2(124.,max(8.,33.+35.*progress));}
@@ -70,16 +66,6 @@ vec3 envSample(vec3 r){
  vec2 uv=clamp(r.xy*.45+.5,vec2(.02),vec2(.98));
  vec2 o=vec2(roughness*.13);
  return (linearize(texture(environmentMap,uv).rgb)*4.+linearize(texture(environmentMap,clamp(uv+vec2(o.x,0.),0.,1.)).rgb)+linearize(texture(environmentMap,clamp(uv-vec2(o.x,0.),0.,1.)).rgb)+linearize(texture(environmentMap,clamp(uv+vec2(0.,o.y),0.,1.)).rgb)+linearize(texture(environmentMap,clamp(uv-vec2(0.,o.y),0.,1.)).rgb))/8.;
-}
-// Smooth rounded-rectangle cap, with a flat tangent at its perimeter.
-float cap(vec2 p){
- vec2 b=bounds();
- float u=clamp(-sd(p,b,radius())/max(1.,b.y*.65),0.,1.);
- vec2 t=p/b;
- return geometryStrength*b.y*(1.-dot(t,t)*.35)*u*u*(3.-2.*u);
-}
-vec2 capGradient(vec2 p){
- return vec2(cap(p+vec2(.5,0.))-cap(p-vec2(.5,0.)),cap(p+vec2(0.,.5))-cap(p-vec2(0.,.5)));
 }
 float smith(float nv,float k){return nv/max(.001,nv*(1.-k)+k);}
 void main(){
@@ -165,48 +151,11 @@ void main(){
  result*=1.-directional*darkEdgeStrength*adaptiveContrast*bright*darkBand*slopeGate*(.35+.65*vertical);
  result=mix(result,max(result,c),ambientLift*mix(.12,.03,shell));
  // Diagnostic modes reuse the F-D2-only model uniform; no ABI change.
- vec3 baseline=result;
- // Independent geometry experiment. Baseline profile 5 is unchanged.
- float opticsEnabled=step(17.5,thinShell);
- float dualInterface=step(18.5,thinShell);
- float environmentMode=step(19.5,thinShell);
- float gate=smoothstep(2.,8.,-d)*opticsEnabled;
- vec2 cg=capGradient(p);
- vec3 gn=normalize(vec3(-cg,1.));
- vec3 inside=refract(-v,gn,1./max(1.001,ior));
- float slab=opticalDepth+cap(p);
- vec2 hit=p+inside.xy/max(.15,-inside.z)*slab;
- // Rear surface normal points toward the incident medium.
- vec3 rear=normalize(vec3(rearCurvature*capGradient(hit),1.));
- vec3 outside=refract(inside,rear,ior);
- float valid=step(.001,length(outside));
- vec2 offset=inside.xy/max(.15,-inside.z)*slab;
- offset+=dualInterface*valid*outside.xy/max(.15,abs(outside.z))*opticalDepth*.65;
- // Limit displacement without a discontinuous inner contour.
- offset=offset/(1.+length(offset)/max(1.,bounds().y*.7));
- vec2 geoQ=xy+offset;
- vec3 T=blurred(geoQ);
- T=mix(T,base,tint);T=mix(base,T,transmission);T=mix(T,base,contrast*.06);
- float gf=f0+(1.-f0)*pow(1.-max(0.,gn.z),5.);
- vec3 gr=reflect(-v,gn);
- vec3 geoLight=envSample(gr);
- // Analytic elongated studio light, sampled in reflection direction.
- float strip=exp(-pow((gr.y+.28)/.16,2.))*exp(-pow(gr.x/.85,4.));
- vec3 radianceGeo=geoLight*env*exposure+vec3(1.,.96,.90)*strip*1.8;
- vec3 geoReflection=1.-exp(-radianceGeo);
- float budget=clamp(gf*geometryReflection,0.,.24);
- vec3 candidate=T*(1.-budget)+geoReflection*budget;
- vec3 transmissionOnly=baseline+(T-c)*(1.-total);
- result=mix(baseline,mix(transmissionOnly,candidate,environmentMode),gate);
- vec3 diagnosticNormal=normalize(mix(n,gn,gate));
- vec2 diagnosticQ=mix(q,geoQ,gate);
- vec3 diagnosticT=mix(c,T,gate);
- vec3 diagnosticReflection=mix(reflectionColor*weight+vec3(glint),geoReflection*budget,gate*environmentMode);
  vec3 outputColor=encode(result);
- if(model>0.5 && model<1.5) outputColor=diagnosticNormal*.5+.5;
- else if(model>1.5 && model<2.5) outputColor=vec3(clamp(.5+(diagnosticQ-xy)/48.,0.,1.),.5);
- else if(model>2.5 && model<3.5) outputColor=encode(diagnosticT);
- else if(model>3.5 && model<4.5) outputColor=encode(diagnosticReflection);
- else if(model>4.5 && model<5.5) outputColor=vec3(total); else if(model>6.5) outputColor=vec3(clamp(cap(p)/max(1.,bounds().y),0.,1.))*opticsEnabled; else if(model>5.5) outputColor=clamp(abs(encode(result)-encode(baseline))*8.,0.,1.);
+ if(model>0.5 && model<1.5) outputColor=n*.5+.5;
+ else if(model>1.5 && model<2.5) outputColor=vec3(clamp(.5+(q-xy)/48.,0.,1.),.5);
+ else if(model>2.5 && model<3.5) outputColor=encode(c);
+ else if(model>3.5 && model<4.5) outputColor=encode(reflectionColor*weight+vec3(glint));
+ else if(model>4.5) outputColor=vec3(total);
  fragColor=vec4(mix(bg,outputColor,alpha),1.);
 }
