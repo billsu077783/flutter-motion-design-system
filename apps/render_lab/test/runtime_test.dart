@@ -39,7 +39,30 @@ class TestEngine implements FMEngine {
   void dispose() {}
 }
 
+class AnimatedTestRenderer extends TestRenderer implements FMAnimatedRenderer {
+  int frames = 0;
+  @override
+  bool get needsFrame => frames < 3;
+  @override
+  void advance(double seconds) { frames++; }
+}
+
 void main() {
+  testWidgets('runtime ticker stops after renderer settles', (tester) async {
+    final renderer = AnimatedTestRenderer();
+    final runtime = FMComponentRuntime(kind: FMComponentKind.button,
+        engine: TestEngine(renderer), vsync: tester);
+    addTearDown(runtime.dispose);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(renderer.frames, 3);
+    expect(runtime.needsFrame, isFalse);
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(renderer.frames, 3);
+  });
+
   test('runtime preserves state across replacement and releases old renderer', () {
     final first = TestRenderer();
     final second = TestRenderer();
