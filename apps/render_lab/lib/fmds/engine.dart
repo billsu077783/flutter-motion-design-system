@@ -52,6 +52,12 @@ abstract interface class FMComponentRenderer {
   void dispose();
 }
 
+/// Optional animation capability; static renderers need not implement it.
+abstract interface class FMAnimatedRenderer implements FMComponentRenderer {
+  bool get needsFrame;
+  void advance(double seconds);
+}
+
 class FMEngineRegistry {
   final Map<String, FMEngine> _engines = {};
   void register(FMEngine engine) {
