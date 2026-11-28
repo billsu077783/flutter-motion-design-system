@@ -39,17 +39,17 @@ jobs:
           mkdir -p "$site"
           build_site() (
             cd apps/render_lab
-            flutter pub get
-            dart format lib test
-            flutter analyze
-            flutter test
+            flutter pub get || exit 1
+            dart format lib test || exit 1
+            flutter analyze || exit 1
+            flutter test || exit 1
             version=$(sed -n 's/^version: //p' pubspec.yaml | cut -d+ -f1)
-            flutter build web --release --base-href "$1" --dart-define="FMDS_VERSION=$version" --dart-define="FMDS_ENV=$3" --dart-define="FMDS_COMMIT=$(git rev-parse --short HEAD)" --dart-define="FMDS_PR=$4"
+            flutter build web --release --base-href "$1" --dart-define="FMDS_VERSION=$version" --dart-define="FMDS_ENV=$3" --dart-define="FMDS_COMMIT=$(git rev-parse --short HEAD)" --dart-define="FMDS_PR=$4" || exit 1
             for page in physical-glass hybrid-glass glass-compare glass-unified; do
-              cp "web/$page.html" "build/web/$page.html"
+              cp "web/$page.html" "build/web/$page.html" || exit 1
             done
-            mkdir -p "$2"
-            cp -a build/web/. "$2/"
+            mkdir -p "$2" || exit 1
+            cp -a build/web/. "$2/" || exit 1
             printf '%s\n' "$(git rev-parse HEAD)" > "$2/commit.txt"
           )
           build_site "/${REPO#*/}/" "$site" production ""
@@ -60,11 +60,21 @@ jobs:
             git clean -fd
             git fetch --no-tags origin "refs/pull/$number/head"
             git checkout --detach "$sha"
-            build_site "/${REPO#*/}/previews/pr-$number/" "$site/previews/pr-$number" preview "$number"
+            candidate="$RUNNER_TEMP/fmds-preview-$number"
+            rm -rf "$candidate"
+            if build_site "/${REPO#*/}/previews/pr-$number/" "$candidate" preview "$number"; then
+              mkdir -p "$site/previews"
+              mv "$candidate" "$site/previews/pr-$number"
+            else
+              rm -rf "$candidate"
+              echo "::warning::PR #$number failed validation; preview omitted"
+              echo "- PR #$number: validation failed; preview omitted" >> "$GITHUB_STEP_SUMMARY"
+            fi
           done < "$RUNNER_TEMP/fmds-prs"
           test -f "$site/index.html"
           echo "Production: https://${REPO%/*}.github.io/${REPO#*/}/" >> "$GITHUB_STEP_SUMMARY"
           while IFS=$'\t' read -r number sha; do
+            [[ -f "$site/previews/pr-$number/index.html" ]] || continue
             echo "- PR #$number: https://${REPO%/*}.github.io/${REPO#*/}/previews/pr-$number/ ($sha)" >> "$GITHUB_STEP_SUMMARY"
           done < "$RUNNER_TEMP/fmds-prs"
       - uses: actions/upload-pages-artifact@v3
