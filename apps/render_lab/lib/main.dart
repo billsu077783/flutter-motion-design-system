@@ -29,22 +29,139 @@ void tick(Duration now){final elapsed=(now-last).inMicroseconds/1e6;double dt=el
 void start(){if(!ticker.isActive){last=Duration.zero;ticker.start();}}
 @override void dispose(){ticker.dispose();image?.dispose();softA?.dispose();softB?.dispose();environment?.dispose();a?.dispose();b?.dispose();for(final shader in versionShaders){shader.dispose();}super.dispose();}
 Widget tile(String name,ui.FragmentShader? shader,double model,{int? version})=>Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[Text(name,style:const TextStyle(fontSize:13)),const SizedBox(height:4),AspectRatio(aspectRatio:1.6,child:ClipRRect(borderRadius:BorderRadius.circular(8),child:Stack(fit:StackFit.expand,children:[if(image!=null&&shader!=null&&softA!=null&&softB!=null&&environment!=null)CustomPaint(painter:PortPainter(image!,model==0?softA!:softB!,shader,model==0?fd2Params(version):Map.of(p),progress,displayedDark,model,environment!,diagnostic,version??profile,Map.of(dual))),if(model!=0||diagnostic==0)Center(child:Text('Optical Glass',style:TextStyle(fontSize:14,fontWeight:FontWeight.bold,color:displayedDark?Colors.white:const Color(0xff172337))))])))]);
-@override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Glass · v1.0.0')),body:SafeArea(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:760),child:ListView(padding:const EdgeInsets.all(20),children:[
-const Text('Surface & spring morph',style:TextStyle(fontSize:24,fontWeight:FontWeight.bold)),
-const Text('Optical baseline v0.4.11'),
-const SizedBox(height:16),
-if(error!=null)Text(error!),
-if(image==null&&error==null)const Center(child:CircularProgressIndicator()),
-tile('Glass surface',a,0),
-Wrap(spacing:8,children:[
-TextButton(onPressed:(){target=target==1?0:1;start();},child:const Text('Morph')),
-TextButton(onPressed:(){setState(()=>dark=!dark);scene();},child:const Text('Theme')),
-TextButton(onPressed:(){setState(()=>app=!app);scene();},child:const Text('Scene')),
-TextButton(onPressed:(){setState(()=>moving=!moving);start();scene();},child:const Text('Dynamic')),
-TextButton(onPressed:(){setState((){p.addAll(specs.map((k,v)=>MapEntry(k,v[3])));dual.addAll(dualSpecs.map((k,v)=>MapEntry(k,v[3])));dual.addAll(adaptiveSpecs.map((k,v)=>MapEntry(k,v[3])));dual['bottomReflection']=.75;});scene();},child:const Text('Reset'))]),
-for(final group in const {'Motion':['mass','stiffness','damping'],'Material':['roughness','depth','thickness','blur','refraction','transmission','ior','tint'],'Lighting':['highlight','rimLight','shadow','envMapIntensity','angle']}.entries)
-ExpansionTile(title:Text(group.key),children:[for(final key in group.value)Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('$key: ${fd2Params()[key]!.toStringAsFixed(3)}'),Slider(value:p[key]!,min:specs[key]![0],max:specs[key]![1],onChanged:(v){setState(()=>p[key]=v);if(key=='blur'||key=='roughness')scene();})])]),
-])))));}
+Widget control(String label, VoidCallback action, {bool selected = false}) {
+  return OutlinedButton(
+    style: OutlinedButton.styleFrom(
+      foregroundColor: selected ? FMDSIndex.accent : FMDSIndex.ink,
+      side: BorderSide(color: selected ? FMDSIndex.accent : FMDSIndex.line),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+    ),
+    onPressed: action,
+    child: Text(label),
+  );
+}
+
+Widget parameterGroup(String title, List<String> keys) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    decoration: BoxDecoration(
+      border: Border.all(color: FMDSIndex.line),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: ExpansionTile(
+      title: Text(title),
+      trailing: const Text('+ / -', style: TextStyle(color: FMDSIndex.muted)),
+      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      children: [
+        for (final key in keys)
+          Column(
+            children: [
+              Row(children: [
+                Expanded(child: Text(key)),
+                Text(fd2Params()[key]!.toStringAsFixed(3),
+                    style: const TextStyle(color: FMDSIndex.accent)),
+              ]),
+              Slider(
+                value: p[key]!,
+                min: specs[key]![0],
+                max: specs[key]![1],
+                onChanged: (v) {
+                  setState(() => p[key] = v);
+                  if (key == 'blur' || key == 'roughness') scene();
+                },
+              ),
+            ],
+          ),
+      ],
+    ),
+  );
+}
+
+void resetParameters() {
+  setState(() {
+    p.addAll(specs.map((k, v) => MapEntry(k, v[3])));
+    dual.addAll(dualSpecs.map((k, v) => MapEntry(k, v[3])));
+    dual.addAll(adaptiveSpecs.map((k, v) => MapEntry(k, v[3])));
+    dual['bottomReflection'] = .75;
+    target = 0;
+    start();
+  });
+  scene();
+}
+
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    backgroundColor: const Color(0xff0b1119),
+    body: SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 960),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            children: [
+              Row(children: [
+                control('< INDEX', () => Navigator.of(context).maybePop()),
+                const Spacer(),
+                const Text('FMDS / v0.1.2',
+                    style: TextStyle(color: FMDSIndex.muted, fontSize: 12)),
+              ]),
+              const SizedBox(height: 16),
+              const Divider(color: FMDSIndex.line),
+              const SizedBox(height: 16),
+              const Text('01 / MATERIAL ENGINE',
+                  style: TextStyle(color: FMDSIndex.accent, letterSpacing: 2, fontSize: 11)),
+              const SizedBox(height: 8),
+              const Text('Glass', style: TextStyle(fontSize: 38, fontWeight: FontWeight.w700)),
+              const Text('ENGINE 1.0.0 / OPTICAL BASELINE 0.4.11',
+                  style: TextStyle(color: FMDSIndex.muted, fontSize: 11)),
+              const SizedBox(height: 24),
+              const Text('01  /  LIVE SURFACE', style: TextStyle(color: FMDSIndex.accent, fontSize: 12)),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xff101b26),
+                  border: Border.all(color: FMDSIndex.line),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (error != null) Text(error!),
+                  if (image == null && error == null) const LinearProgressIndicator(),
+                  tile('Surface / spring morph', a, 0),
+                  const SizedBox(height: 12),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    control(target == 1 ? 'Collapse' : 'Expand', () {
+                      setState(() => target = target == 1 ? 0 : 1);
+                      start();
+                    }, selected: target == 1),
+                    control(dark ? 'Dark' : 'Light', () {setState(() => dark = !dark); scene();}, selected: dark),
+                    control(app ? 'App scene' : 'Test scene', () {setState(() => app = !app); scene();}, selected: app),
+                    control(moving ? 'Motion on' : 'Motion off', () {setState(() => moving = !moving); start(); scene();}, selected: moving),
+                  ]),
+                ]),
+              ),
+              const SizedBox(height: 24),
+              Row(children: [
+                const Expanded(child: Text('02  /  INSPECTOR',
+                    style: TextStyle(color: FMDSIndex.accent, fontSize: 12))),
+                control('Reset', resetParameters),
+              ]),
+              const SizedBox(height: 12),
+              parameterGroup('Motion / Spring', ['mass','stiffness','damping']),
+              parameterGroup('Material / Optics', ['roughness','depth','thickness','blur','refraction','transmission','ior','tint']),
+              parameterGroup('Lighting / Environment', ['highlight','rimLight','shadow','envMapIntensity','angle']),
+              const SizedBox(height: 16),
+              const Text('FLUTTER SHADER / PLATFORM VALIDATION PENDING',
+                  style: TextStyle(color: FMDSIndex.muted, fontSize: 10, letterSpacing: 1)),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+}
 class FMDSApp extends StatelessWidget {
 const FMDSApp({super.key});
 @override Widget build(BuildContext context)=>MaterialApp(debugShowCheckedModeBanner:false,title:'FMDS',theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff7289ad),brightness:Brightness.dark),useMaterial3:true),home:const FMDSIndex());
@@ -59,7 +176,7 @@ class FMDSIndex extends StatelessWidget {
   Widget tag(String value,{bool live=false})=>Container(padding:const EdgeInsets.symmetric(horizontal:8,vertical:5),decoration:BoxDecoration(border:Border.all(color:live?accent:line),borderRadius:BorderRadius.circular(4)),child:Text(value,style:TextStyle(fontSize:10,letterSpacing:1,color:live?accent:muted)));
   Widget section(String number,String title,String detail)=>Padding(padding:const EdgeInsets.only(top:28,bottom:12),child:Row(children:[Text(number,style:const TextStyle(color:accent,fontSize:12)),const SizedBox(width:10),Expanded(child:Text(title,style:const TextStyle(color:ink,fontSize:18,fontWeight:FontWeight.w600))),Text(detail,style:const TextStyle(color:muted,fontSize:11))]));
   @override Widget build(BuildContext context)=>Scaffold(backgroundColor:const Color(0xff0b1119),body:SafeArea(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1120),child:ListView(padding:const EdgeInsets.fromLTRB(20,16,20,32),children:[
-    Row(children:[const Text('FMDS',style:TextStyle(color:ink,fontSize:22,fontWeight:FontWeight.w800,letterSpacing:2)),const SizedBox(width:10),tag('v0.1.1'),const Spacer(),tag('FLUTTER')]),
+    Row(children:[const Text('FMDS',style:TextStyle(color:ink,fontSize:22,fontWeight:FontWeight.w800,letterSpacing:2)),const SizedBox(width:10),tag('v0.1.2'),const Spacer(),tag('FLUTTER')]),
     const SizedBox(height:18),const Divider(color:line,height:1),const SizedBox(height:24),
     const Text('MOTION / MATERIAL / SYSTEM',style:TextStyle(color:accent,fontSize:10,letterSpacing:1.7)),
     const SizedBox(height:10),
