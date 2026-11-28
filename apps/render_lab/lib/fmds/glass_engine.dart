@@ -40,13 +40,15 @@ class FMGlassEngine implements FMEngine {
   void dispose() { _disposed = true; _program = null; }
 }
 
-class FMGlassRenderer implements FMComponentRenderer {
+class FMGlassRenderer implements FMAnimatedRenderer {
   FMGlassRenderer(this._shader);
   final ui.FragmentShader _shader;
   bool _attached = false, _disposed = false;
   final FMSpring _spring = FMSpring();
   double _speed = 1;
+  @override
   bool get needsFrame => !_spring.settled;
+  @override
   void advance(double seconds) {
     if (!_attached || _disposed) return;
     _spring.advance(seconds * _speed, mass: optics['mass']!,
