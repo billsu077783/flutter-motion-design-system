@@ -167,10 +167,10 @@ void main(){
  // Diagnostic modes reuse the F-D2-only model uniform; no ABI change.
  vec3 baseline=result;
  // Independent geometry experiment. Baseline profile 5 is unchanged.
- float active=step(17.5,thinShell);
+ float opticsEnabled=step(17.5,thinShell);
  float dualInterface=step(18.5,thinShell);
  float environmentMode=step(19.5,thinShell);
- float gate=smoothstep(2.,8.,-d)*active;
+ float gate=smoothstep(2.,8.,-d)*opticsEnabled;
  vec2 cg=capGradient(p);
  vec3 gn=normalize(vec3(-cg,1.));
  vec3 inside=refract(-v,gn,1./max(1.001,ior));
@@ -207,6 +207,6 @@ void main(){
  else if(model>1.5 && model<2.5) outputColor=vec3(clamp(.5+(diagnosticQ-xy)/48.,0.,1.),.5);
  else if(model>2.5 && model<3.5) outputColor=encode(diagnosticT);
  else if(model>3.5 && model<4.5) outputColor=encode(diagnosticReflection);
- else if(model>4.5 && model<5.5) outputColor=vec3(total); else if(model>6.5) outputColor=vec3(clamp(cap(p)/max(1.,bounds().y),0.,1.))*active; else if(model>5.5) outputColor=clamp(abs(encode(result)-encode(baseline))*8.,0.,1.);
+ else if(model>4.5 && model<5.5) outputColor=vec3(total); else if(model>6.5) outputColor=vec3(clamp(cap(p)/max(1.,bounds().y),0.,1.))*opticsEnabled; else if(model>5.5) outputColor=clamp(abs(encode(result)-encode(baseline))*8.,0.,1.);
  fragColor=vec4(mix(bg,outputColor,alpha),1.);
 }
