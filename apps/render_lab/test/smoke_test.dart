@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' show Size;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fmds_render_lab/main.dart';
+import 'package:fmds_render_lab/fmds/glass_engine.dart';
 
 void main() {
   test('parameter contract', () {
