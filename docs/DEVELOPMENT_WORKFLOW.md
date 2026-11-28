@@ -10,6 +10,14 @@
 - Review workflow YAML, shell commands and deployment paths when changing infrastructure.
 - Preserve the accepted Glass Engine 1.0 baseline unless explicitly requested.
 
+## Refactoring impact check
+
+- Enumerate all Dart files under lib and test, including nested directories; inspect every reference to moved, renamed or removed symbols, not only changed files.
+- Verify direct imports or intentional exports for each consumer; Dart imports are not transitive.
+- Inspect interface implementations, constructor calls, tests, asset declarations and shader bindings together.
+- Compare frozen shader and parameter defaults against the accepted baseline.
+- Record the exact checked revision, findings and checks not executed. Require successful PR analysis, tests and release build before acceptance.
+
 ## PR and acceptance
 
 Every change goes through a PR. PR Validation must succeed; Pages Assembly must deploy the corresponding preview. Provide PR, Actions run and preview links, plus the actual head SHA and check results. Preview path: /flutter-motion-design-system/previews/pr-N/. The user must approve the current revision before merging. Recheck the head SHA and CI before merge. After merge verify main deployment and preview cleanup.
