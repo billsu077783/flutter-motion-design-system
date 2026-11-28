@@ -2,6 +2,11 @@ import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+const fmdsVersion = String.fromEnvironment('FMDS_VERSION', defaultValue: '0.1.4');
+const fmdsEnvironment = String.fromEnvironment('FMDS_ENV', defaultValue: 'local');
+const fmdsCommit = String.fromEnvironment('FMDS_COMMIT', defaultValue: 'local');
+const fmdsPr = String.fromEnvironment('FMDS_PR');
+const fmdsBuildLabel = fmdsEnvironment == 'preview' ? 'PR #$fmdsPr · $fmdsCommit' : '$fmdsEnvironment · $fmdsCommit';
 void main()=>runApp(const FMDSApp());
 const specs=<String,List<double>>{
 'ior':[1,2,.01,1.46],'roughness':[0,.65,.01,.08],'thickness':[0,1.5,.01,.42],'transmission':[0,1,.01,1],'envMapIntensity':[0,4,.05,1.5],'bevel':[.02,.32,.01,.16],'depth':[.05,.5,.01,.20],'tint':[0,.8,.01,0],'angle':[0,360,1,315],'exposure':[.5,2,.05,1.15],'blur':[0,18,.5,5],'rimLight':[0,1,.05,.65],'shadow':[0,.6,.02,.22],'crown':[0,.15,.005,.06],'refraction':[0,48,1,24],'highlight':[0,1.5,.05,.85],'mass':[.5,3,.1,1],'stiffness':[60,380,1,180],'damping':[4,70,1,12],'bevelWidth':[.05,.45,.01,.18],'fresnel':[0,1,.05,.65],'contrast':[0,1,.05,.22],'dispersion':[0,.3,.01,.05],'edgeHighlight':[0,2,.05,1.35],'highlightWidth':[.02,.5,.01,.18],'surfaceReflection':[0,.6,.01,.18],'ambientLift':[0,.4,.01,.10],'refractionDetail':[0,1,.05,.25]};
@@ -103,7 +108,7 @@ Widget build(BuildContext context) {
               Row(children: [
                 control('< INDEX', () => Navigator.of(context).maybePop()),
                 const Spacer(),
-                const Text('FMDS / v0.1.2',
+                const Text('FMDS / v$fmdsVersion',
                     style: TextStyle(color: FMDSIndex.muted, fontSize: 12)),
               ]),
               const SizedBox(height: 16),
@@ -176,7 +181,9 @@ class FMDSIndex extends StatelessWidget {
   Widget tag(String value,{bool live=false})=>Container(padding:const EdgeInsets.symmetric(horizontal:8,vertical:5),decoration:BoxDecoration(border:Border.all(color:live?accent:line),borderRadius:BorderRadius.circular(4)),child:Text(value,style:TextStyle(fontSize:10,letterSpacing:1,color:live?accent:muted)));
   Widget section(String number,String title,String detail)=>Padding(padding:const EdgeInsets.only(top:28,bottom:12),child:Row(children:[Text(number,style:const TextStyle(color:accent,fontSize:12)),const SizedBox(width:10),Expanded(child:Text(title,style:const TextStyle(color:ink,fontSize:18,fontWeight:FontWeight.w600))),Text(detail,style:const TextStyle(color:muted,fontSize:11))]));
   @override Widget build(BuildContext context)=>Scaffold(backgroundColor:const Color(0xff0b1119),body:SafeArea(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1120),child:ListView(padding:const EdgeInsets.fromLTRB(20,16,20,32),children:[
-    Row(children:[const Text('FMDS',style:TextStyle(color:ink,fontSize:22,fontWeight:FontWeight.w800,letterSpacing:2)),const SizedBox(width:10),tag('v0.1.2'),const Spacer(),tag('FLUTTER')]),
+    Row(children:[const Text('FMDS',style:TextStyle(color:ink,fontSize:22,fontWeight:FontWeight.w800,letterSpacing:2)),const SizedBox(width:10),tag('v$fmdsVersion'),const Spacer(),tag('FLUTTER')]),
+    const SizedBox(height:8),
+    const Text(fmdsBuildLabel,style:TextStyle(color:Color(0xff94a3b8),fontSize:11)),
     const SizedBox(height:18),const Divider(color:line,height:1),const SizedBox(height:24),
     const Text('MOTION / MATERIAL / SYSTEM',style:TextStyle(color:accent,fontSize:10,letterSpacing:1.7)),
     const SizedBox(height:10),

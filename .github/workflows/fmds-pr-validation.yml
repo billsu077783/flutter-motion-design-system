@@ -24,4 +24,13 @@ jobs:
       - run: dart format lib test
       - run: flutter analyze
       - run: flutter test
-      - run: flutter build web --release --base-href /flutter-motion-design-system/
+      - run: flutter build web --release --base-href /flutter-motion-design-system/previews/pr-${{ github.event.pull_request.number }}/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fmds-pr-${{ github.event.pull_request.number }}
+          path: apps/render_lab/build/web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fmds-pubspec-lock
+          path: apps/render_lab/pubspec.lock
+          if-no-files-found: error
