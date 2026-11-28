@@ -1,42 +1,76 @@
-name: Flutter Web CI
+name: FMDS Pages Assembly
 on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
   push:
     branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
+  pull-requests: read
   pages: write
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
-  build:
+  assemble:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/render_lab
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: '3.38.5'
-      - run: flutter --version
-      - run: flutter pub get
-      - run: dart format lib test
-      - run: flutter analyze
-      - run: flutter test
-      - run: flutter build web --release --base-href /flutter-motion-design-system/
-      - run: cp web/physical-glass.html build/web/physical-glass.html
-      - run: cp web/hybrid-glass.html build/web/hybrid-glass.html
-      - run: cp web/glass-compare.html build/web/glass-compare.html
-      - run: cp web/glass-unified.html build/web/glass-unified.html
+      - name: Assemble production and open PR previews
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter --version
+          site="$RUNNER_TEMP/fmds-site"
+          mkdir -p "$site"
+          build_site() (
+            cd apps/render_lab
+            flutter pub get
+            dart format lib test
+            flutter analyze
+            flutter test
+            flutter build web --release --base-href "$1"
+            for page in physical-glass hybrid-glass glass-compare glass-unified; do
+              cp "web/$page.html" "build/web/$page.html"
+            done
+            mkdir -p "$2"
+            cp -a build/web/. "$2/"
+            printf '%s\n' "$(git rev-parse HEAD)" > "$2/commit.txt"
+          )
+          build_site "/${REPO#*/}/" "$site"
+          gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" --jq '.[] | select(.head.repo.full_name == .base.repo.full_name and .base.ref == "main") | [.number,.head.sha] | @tsv' > "$RUNNER_TEMP/fmds-prs"
+          while IFS=$'\t' read -r number sha; do
+            [[ "$number" =~ ^[0-9]+$ && "$sha" =~ ^[0-9a-f]{40}$ ]] || exit 1
+            git reset --hard
+            git clean -fd
+            git fetch --no-tags origin "refs/pull/$number/head"
+            git checkout --detach "$sha"
+            build_site "/${REPO#*/}/previews/pr-$number/" "$site/previews/pr-$number"
+          done < "$RUNNER_TEMP/fmds-prs"
+          test -f "$site/index.html"
+          echo "Production: https://${REPO%/*}.github.io/${REPO#*/}/" >> "$GITHUB_STEP_SUMMARY"
+          while IFS=$'\t' read -r number sha; do
+            echo "- PR #$number: https://${REPO%/*}.github.io/${REPO#*/}/previews/pr-$number/ ($sha)" >> "$GITHUB_STEP_SUMMARY"
+          done < "$RUNNER_TEMP/fmds-prs"
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/render_lab/build/web
+          path: ${{ runner.temp }}/fmds-site
   deploy:
-    needs: build
+    needs: assemble
     runs-on: ubuntu-latest
     environment:
       name: github-pages
