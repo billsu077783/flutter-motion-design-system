@@ -54,8 +54,11 @@ class FMComponentRuntime extends ChangeNotifier {
     try {
       previous.detach();
     } finally {
-      previous.dispose();
-      notifyListeners();
+      try {
+        previous.dispose();
+      } finally {
+        notifyListeners();
+      }
     }
   }
 
