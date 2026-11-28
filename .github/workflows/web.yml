@@ -43,7 +43,8 @@ jobs:
             dart format lib test
             flutter analyze
             flutter test
-            flutter build web --release --base-href "$1"
+            version=$(sed -n 's/^version: //p' pubspec.yaml | cut -d+ -f1)
+            flutter build web --release --base-href "$1" --dart-define="FMDS_VERSION=$version" --dart-define="FMDS_ENV=$3" --dart-define="FMDS_COMMIT=$(git rev-parse --short HEAD)" --dart-define="FMDS_PR=$4"
             for page in physical-glass hybrid-glass glass-compare glass-unified; do
               cp "web/$page.html" "build/web/$page.html"
             done
@@ -51,7 +52,7 @@ jobs:
             cp -a build/web/. "$2/"
             printf '%s\n' "$(git rev-parse HEAD)" > "$2/commit.txt"
           )
-          build_site "/${REPO#*/}/" "$site"
+          build_site "/${REPO#*/}/" "$site" production ""
           gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" --jq '.[] | select(.head.repo.full_name == .base.repo.full_name and .base.ref == "main") | [.number,.head.sha] | @tsv' > "$RUNNER_TEMP/fmds-prs"
           while IFS=$'\t' read -r number sha; do
             [[ "$number" =~ ^[0-9]+$ && "$sha" =~ ^[0-9a-f]{40}$ ]] || exit 1
@@ -59,7 +60,7 @@ jobs:
             git clean -fd
             git fetch --no-tags origin "refs/pull/$number/head"
             git checkout --detach "$sha"
-            build_site "/${REPO#*/}/previews/pr-$number/" "$site/previews/pr-$number"
+            build_site "/${REPO#*/}/previews/pr-$number/" "$site/previews/pr-$number" preview "$number"
           done < "$RUNNER_TEMP/fmds-prs"
           test -f "$site/index.html"
           echo "Production: https://${REPO%/*}.github.io/${REPO#*/}/" >> "$GITHUB_STEP_SUMMARY"
